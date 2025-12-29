@@ -11,13 +11,18 @@ Text Extraction Considerations:
 - Text cleaning normalizes whitespace
 """
 
+import hashlib
 import re
+import uuid
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import fitz  # PyMuPDF
+from sqlalchemy import select
 
+from backend.app.db.base import async_session_factory
+from backend.app.db.models import Document
 from backend.app.settings import settings
 
 
@@ -48,6 +53,9 @@ class ExtractedDocument:
     full_text: str
     page_count: int
     metadata: dict
+    doc_id: Optional[str] = None
+    filename: Optional[str] = None
+    file_hash: Optional[str] = None
 
 
 class TextExtractor:
@@ -184,6 +192,101 @@ class TextExtractor:
             doc.close()
 
 
-# Singleton instance
+class TextExtractionService:
+    """
+    High-level text extraction service with database persistence.
+
+    Wraps TextExtractor and adds async database operations for Document records.
+    """
+
+    def __init__(self, extractor: Optional[TextExtractor] = None):
+        """Initialize the service with an optional extractor instance."""
+        self._extractor = extractor or TextExtractor()
+
+    async def extract_and_persist(
+        self,
+        file_path: str | Path,
+        doc_id: Optional[str] = None,
+    ) -> ExtractedDocument:
+        """
+        Extract text from a file and persist Document record to database.
+
+        Args:
+            file_path: Path to the document file
+            doc_id: Optional document ID (generated if not provided)
+
+        Returns:
+            ExtractedDocument with doc_id set
+        """
+        file_path = Path(file_path)
+
+        # Generate doc_id if not provided
+        if doc_id is None:
+            doc_id = str(uuid.uuid4())
+
+        # Calculate file hash for deduplication
+        file_hash = self._calculate_file_hash(file_path)
+
+        # Extract text
+        extracted = self._extractor.extract_from_pdf(file_path)
+
+        # Add doc_id and file info to the extracted document
+        extracted.doc_id = doc_id
+        extracted.filename = file_path.name
+        extracted.file_hash = file_hash
+
+        # Persist to database
+        await self._persist_document(extracted, file_path)
+
+        return extracted
+
+    async def _persist_document(
+        self,
+        extracted: ExtractedDocument,
+        file_path: Path,
+    ) -> None:
+        """Persist Document record to database."""
+        async with async_session_factory() as session:
+            doc_uuid = uuid.UUID(extracted.doc_id)
+
+            # Check if document already exists
+            existing = await session.execute(
+                select(Document).where(Document.id == doc_uuid)
+            )
+            if existing.scalar_one_or_none():
+                return  # Already exists
+
+            doc = Document(
+                id=doc_uuid,
+                filename=extracted.filename,
+                file_hash=extracted.file_hash,
+                file_size=file_path.stat().st_size,
+                mime_type="application/pdf",
+                page_count=extracted.page_count,
+                total_char_count=len(extracted.full_text),
+                doc_metadata=extracted.metadata,
+            )
+            session.add(doc)
+            await session.commit()
+
+    def _calculate_file_hash(self, file_path: Path) -> str:
+        """Calculate SHA256 hash of file."""
+        sha256_hash = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(chunk)
+        return sha256_hash.hexdigest()
+
+    def extract_from_pdf(self, file_path: str | Path) -> ExtractedDocument:
+        """
+        Extract text without persisting (synchronous).
+
+        For cases where you only need in-memory extraction.
+        """
+        return self._extractor.extract_from_pdf(file_path)
+
+
+# Singleton instances
 text_extractor = TextExtractor()
+text_extraction_service = TextExtractionService(text_extractor)
 

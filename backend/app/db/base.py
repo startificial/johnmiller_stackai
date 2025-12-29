@@ -2,6 +2,7 @@
 SQLAlchemy async engine and session configuration.
 """
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
@@ -35,14 +36,16 @@ async def get_session() -> AsyncSession:
 
 
 async def init_db() -> None:
-    """Initialize database tables."""
+    """Initialize database tables and extensions."""
     async with engine.begin() as conn:
+        # Enable pgvector extension for vector similarity search
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        # Create all tables
         await conn.run_sync(Base.metadata.create_all)
 
 
 async def drop_db() -> None:
     """Drop all database tables."""
-    from sqlalchemy import text
     async with engine.begin() as conn:
         # Drop all tables with CASCADE to handle foreign key constraints
         await conn.execute(text("DROP SCHEMA public CASCADE"))

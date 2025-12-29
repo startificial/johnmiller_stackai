@@ -30,6 +30,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Enum,
 )
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -207,9 +208,9 @@ class DocumentChunk(Base):
     # Note: Using 'chunk_metadata' to avoid conflict with SQLAlchemy's reserved 'metadata' attribute
     chunk_metadata = Column(JSONB, default=dict)
 
-    # Embedding for vector search (nullable until embedding service is implemented)
-    # Using JSONB to store as array; can migrate to pgvector extension later
-    embedding = Column(JSONB, nullable=True)
+    # Embedding for vector search using pgvector
+    # 1024 dimensions for Mistral's mistral-embed model
+    embedding = Column(Vector(1024), nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, nullable=False, server_default=func.now())

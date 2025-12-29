@@ -14,7 +14,10 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 import numpy as np
+from sqlalchemy import select
 
+from backend.app.db.base import async_session_factory
+from backend.app.db.models import DocumentChunk
 from backend.app.services.text_extraction import ExtractedDocument
 from backend.app.settings import settings
 
@@ -376,3 +379,118 @@ class StructuralChunker:
 
 # Singleton instance with default settings
 structural_chunker = StructuralChunker()
+
+
+class ChunkingService:
+    """
+    High-level chunking service that handles document chunking and database persistence.
+
+    Wraps the StructuralChunker and adds async database operations.
+    """
+
+    def __init__(self, chunker: Optional[StructuralChunker] = None):
+        """
+        Initialize the chunking service.
+
+        Args:
+            chunker: Optional StructuralChunker instance. Uses default if not provided.
+        """
+        self._chunker = chunker or structural_chunker
+
+    async def chunk_and_persist(
+        self,
+        document: ExtractedDocument,
+        doc_id: Optional[str] = None,
+    ) -> ChunkedDocument:
+        """
+        Chunk a document and persist chunks to the database.
+
+        Args:
+            document: ExtractedDocument from text extraction service
+            doc_id: Optional document identifier. If not provided, uses
+                    document.doc_id if available, otherwise generates one.
+
+        Returns:
+            ChunkedDocument with chunks persisted to database
+        """
+        # Use doc_id from document if available
+        if doc_id is None and hasattr(document, 'doc_id') and document.doc_id:
+            doc_id = document.doc_id
+
+        # Create chunks using the structural chunker
+        chunked_doc = self._chunker.chunk_document(document, doc_id)
+
+        # Persist chunks to database
+        await self._persist_chunks(chunked_doc)
+
+        return chunked_doc
+
+    async def _persist_chunks(self, chunked_doc: ChunkedDocument) -> int:
+        """
+        Persist all chunks from a ChunkedDocument to the database.
+
+        Uses INSERT with conflict handling to support re-runs.
+
+        Args:
+            chunked_doc: ChunkedDocument with chunks to persist
+
+        Returns:
+            Number of chunks persisted
+        """
+        if not chunked_doc.chunks:
+            return 0
+
+        async with async_session_factory() as session:
+            # Convert doc_id to UUID
+            from uuid import UUID as PyUUID
+            doc_uuid = PyUUID(chunked_doc.doc_id) if isinstance(chunked_doc.doc_id, str) else chunked_doc.doc_id
+
+            persisted_count = 0
+
+            for chunk in chunked_doc.chunks:
+                # Check if chunk already exists
+                existing = await session.execute(
+                    select(DocumentChunk).where(DocumentChunk.chunk_id == chunk.id)
+                )
+                if existing.scalar_one_or_none():
+                    continue
+
+                # Create new DocumentChunk record
+                db_chunk = DocumentChunk(
+                    chunk_id=chunk.id,
+                    document_id=doc_uuid,
+                    text=chunk.text,
+                    char_count=len(chunk.text),
+                    level=chunk.level,
+                    page_number=chunk.metadata.get("page_number", 1),
+                    chunk_index=chunk.metadata.get("chunk_index", 0),
+                    chunk_metadata=chunk.metadata,
+                )
+                session.add(db_chunk)
+                persisted_count += 1
+
+            await session.commit()
+            return persisted_count
+
+    def chunk_document(
+        self,
+        document: ExtractedDocument,
+        doc_id: Optional[str] = None,
+    ) -> ChunkedDocument:
+        """
+        Chunk a document without persisting (synchronous).
+
+        For cases where you only need in-memory chunking.
+
+        Args:
+            document: ExtractedDocument from text extraction service
+            doc_id: Optional document identifier
+
+        Returns:
+            ChunkedDocument (not persisted)
+        """
+        return self._chunker.chunk_document(document, doc_id)
+
+
+# Singleton service instance
+chunking_service = ChunkingService()

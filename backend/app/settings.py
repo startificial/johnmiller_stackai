@@ -92,21 +92,36 @@ class TextExtractionSettings:
 
 @dataclass
 class EmbeddingSettings:
-    """Settings for embedding service (future use)."""
+    """Settings for Mistral AI embedding service."""
 
-    # Model name for embeddings
-    model_name: str = field(
-        default_factory=lambda: _get_env_str("EMBEDDING_MODEL", "text-embedding-3-small")
+    # Mistral API key (required)
+    api_key: str = field(
+        default_factory=lambda: _get_env_str("MISTRAL_API_KEY", "")
     )
 
-    # Embedding dimension
+    # Model name for embeddings (mistral-embed produces 1024-dimensional vectors)
+    model_name: str = field(
+        default_factory=lambda: _get_env_str("EMBEDDING_MODEL", "mistral-embed")
+    )
+
+    # Embedding dimension (mistral-embed: 1024)
     dimension: int = field(
-        default_factory=lambda: _get_env_int("EMBEDDING_DIMENSION", 1536)
+        default_factory=lambda: _get_env_int("EMBEDDING_DIMENSION", 1024)
     )
 
     # Batch size for embedding generation
     batch_size: int = field(
-        default_factory=lambda: _get_env_int("EMBEDDING_BATCH_SIZE", 100)
+        default_factory=lambda: _get_env_int("EMBEDDING_BATCH_SIZE", 32)
+    )
+
+    # Maximum retries for API calls
+    max_retries: int = field(
+        default_factory=lambda: _get_env_int("EMBEDDING_MAX_RETRIES", 3)
+    )
+
+    # Timeout for API calls in seconds
+    timeout: float = field(
+        default_factory=lambda: _get_env_float("EMBEDDING_TIMEOUT", 60.0)
     )
 
 

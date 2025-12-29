@@ -11,3 +11,5 @@ wheels/
 
 # Test files 
 manual-qa/
+
+.env
