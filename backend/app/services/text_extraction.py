@@ -18,6 +18,20 @@ from typing import Optional
 
 import fitz  # PyMuPDF
 
+from backend.app.settings import settings
+
+
+class FileTooLargeError(Exception):
+    """Raised when a file exceeds the maximum allowed size."""
+
+    pass
+
+
+class UnsupportedFileTypeError(Exception):
+    """Raised when a file type is not supported."""
+
+    pass
+
 
 @dataclass
 class ExtractedPage:
@@ -54,10 +68,29 @@ class TextExtractor:
 
         Raises:
             FileNotFoundError: If the PDF file doesn't exist
+            FileTooLargeError: If the file exceeds maximum size
+            UnsupportedFileTypeError: If the file extension is not supported
         """
         file_path = Path(file_path)
         if not file_path.exists():
             raise FileNotFoundError(f"PDF file not found: {file_path}")
+
+        extraction_settings = settings.text_extraction
+
+        # Validate file extension
+        if file_path.suffix.lower() not in extraction_settings.supported_extensions:
+            raise UnsupportedFileTypeError(
+                f"Unsupported file type: {file_path.suffix}. "
+                f"Supported: {extraction_settings.supported_extensions}"
+            )
+
+        # Validate file size
+        file_size = file_path.stat().st_size
+        if file_size > extraction_settings.max_file_size:
+            raise FileTooLargeError(
+                f"File size ({file_size} bytes) exceeds maximum "
+                f"({extraction_settings.max_file_size} bytes)"
+            )
 
         doc = fitz.open(file_path)
         try:
@@ -77,7 +110,11 @@ class TextExtractor:
                     ))
                     all_text_parts.append(cleaned_text)
 
-            metadata = self._extract_metadata(doc)
+            metadata = (
+                self._extract_metadata(doc)
+                if extraction_settings.extract_metadata
+                else {}
+            )
 
             return ExtractedDocument(
                 pages=pages,
