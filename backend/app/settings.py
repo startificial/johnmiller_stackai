@@ -177,6 +177,47 @@ class SearchSettings:
 
 
 @dataclass
+class QueryTransformSettings:
+    """Settings for query transformation service."""
+
+    # Mistral API key (shared with embedding service)
+    api_key: str = field(
+        default_factory=lambda: _get_env_str("MISTRAL_API_KEY", "")
+    )
+
+    # Model name for query generation (fast models for low latency)
+    # Options: mistral-small-latest, open-mistral-7b, mistral-tiny
+    model_name: str = field(
+        default_factory=lambda: _get_env_str("QUERY_TRANSFORM_MODEL", "mistral-small-latest")
+    )
+
+    # Number of query variants to generate for multi-query (RAG-Fusion)
+    num_queries: int = field(
+        default_factory=lambda: _get_env_int("QUERY_TRANSFORM_NUM_QUERIES", 4)
+    )
+
+    # Temperature for generation (higher = more diverse queries)
+    temperature: float = field(
+        default_factory=lambda: _get_env_float("QUERY_TRANSFORM_TEMPERATURE", 0.7)
+    )
+
+    # Maximum tokens for generated queries
+    max_tokens: int = field(
+        default_factory=lambda: _get_env_int("QUERY_TRANSFORM_MAX_TOKENS", 256)
+    )
+
+    # Maximum retries for API calls
+    max_retries: int = field(
+        default_factory=lambda: _get_env_int("QUERY_TRANSFORM_MAX_RETRIES", 3)
+    )
+
+    # Timeout for API calls in seconds
+    timeout: float = field(
+        default_factory=lambda: _get_env_float("QUERY_TRANSFORM_TIMEOUT", 30.0)
+    )
+
+
+@dataclass
 class RetrieverSettings:
     """Settings for hybrid retriever service."""
 
@@ -223,6 +264,7 @@ class Settings:
     database: DatabaseSettings = field(default_factory=DatabaseSettings)
     search: SearchSettings = field(default_factory=SearchSettings)
     retriever: RetrieverSettings = field(default_factory=RetrieverSettings)
+    query_transform: QueryTransformSettings = field(default_factory=QueryTransformSettings)
 
     # Application settings
     debug: bool = field(

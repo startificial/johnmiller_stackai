@@ -16,6 +16,16 @@ from backend.app.services.embedding import (
     EmbeddingError,
     EmbeddingConfigError,
 )
+from backend.app.services.query_transformer import (
+    QueryTransformer,
+    query_transformer,
+    MistralQueryGenerator,
+    QueryVariant,
+    MultiQueryResult,
+    QueryTransformError,
+    QueryTransformConfigError,
+    QueryGenerationError,
+)
 
 __all__ = [
     # Search indexer
@@ -32,4 +42,13 @@ __all__ = [
     "EmbeddingBatchResult",
     "EmbeddingError",
     "EmbeddingConfigError",
+    # Query transformer
+    "QueryTransformer",
+    "query_transformer",
+    "MistralQueryGenerator",
+    "QueryVariant",
+    "MultiQueryResult",
+    "QueryTransformError",
+    "QueryTransformConfigError",
+    "QueryGenerationError",
 ]
