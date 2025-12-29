@@ -177,6 +177,42 @@ class SearchSettings:
 
 
 @dataclass
+class RetrieverSettings:
+    """Settings for hybrid retriever service."""
+
+    # RRF (Reciprocal Rank Fusion) constant
+    # Higher values give less weight to top results (typically 60)
+    rrf_k: int = field(
+        default_factory=lambda: _get_env_int("RETRIEVER_RRF_K", 60)
+    )
+
+    # Weight for semantic search results in fusion
+    semantic_weight: float = field(
+        default_factory=lambda: _get_env_float("RETRIEVER_SEMANTIC_WEIGHT", 1.0)
+    )
+
+    # Weight for keyword search results in fusion
+    keyword_weight: float = field(
+        default_factory=lambda: _get_env_float("RETRIEVER_KEYWORD_WEIGHT", 1.0)
+    )
+
+    # Default number of results to return
+    default_top_k: int = field(
+        default_factory=lambda: _get_env_int("RETRIEVER_DEFAULT_TOP_K", 10)
+    )
+
+    # Whether to expand results with parent chunk context by default
+    expand_context: bool = field(
+        default_factory=lambda: _get_env_bool("RETRIEVER_EXPAND_CONTEXT", True)
+    )
+
+    # Multiplier for internal search (fetch more candidates for fusion)
+    search_multiplier: int = field(
+        default_factory=lambda: _get_env_int("RETRIEVER_SEARCH_MULTIPLIER", 3)
+    )
+
+
+@dataclass
 class Settings:
     """Main application settings container."""
 
@@ -186,6 +222,7 @@ class Settings:
     embedding: EmbeddingSettings = field(default_factory=EmbeddingSettings)
     database: DatabaseSettings = field(default_factory=DatabaseSettings)
     search: SearchSettings = field(default_factory=SearchSettings)
+    retriever: RetrieverSettings = field(default_factory=RetrieverSettings)
 
     # Application settings
     debug: bool = field(
