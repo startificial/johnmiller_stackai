@@ -26,6 +26,16 @@ from backend.app.services.query_transformer import (
     QueryTransformConfigError,
     QueryGenerationError,
 )
+from backend.app.services.intent_classifier import (
+    IntentClassifier,
+    intent_classifier,
+    MistralIntentClassifier,
+    Intent,
+    IntentResult,
+    IntentClassificationError,
+    IntentConfigError,
+    IntentParseError,
+)
 
 __all__ = [
     # Search indexer
@@ -51,4 +61,13 @@ __all__ = [
     "QueryTransformError",
     "QueryTransformConfigError",
     "QueryGenerationError",
+    # Intent classifier
+    "IntentClassifier",
+    "intent_classifier",
+    "MistralIntentClassifier",
+    "Intent",
+    "IntentResult",
+    "IntentClassificationError",
+    "IntentConfigError",
+    "IntentParseError",
 ]

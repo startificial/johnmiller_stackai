@@ -218,6 +218,42 @@ class QueryTransformSettings:
 
 
 @dataclass
+class IntentClassificationSettings:
+    """Settings for intent classification service."""
+
+    # Mistral API key (shared with other services)
+    api_key: str = field(
+        default_factory=lambda: _get_env_str("MISTRAL_API_KEY", "")
+    )
+
+    # Model name for intent classification (fastest model for lowest latency)
+    # ministral-3b-latest is Mistral's fastest model
+    model_name: str = field(
+        default_factory=lambda: _get_env_str("INTENT_MODEL", "ministral-3b-latest")
+    )
+
+    # Temperature for classification (lower = more deterministic)
+    temperature: float = field(
+        default_factory=lambda: _get_env_float("INTENT_TEMPERATURE", 0.0)
+    )
+
+    # Maximum tokens for response
+    max_tokens: int = field(
+        default_factory=lambda: _get_env_int("INTENT_MAX_TOKENS", 64)
+    )
+
+    # Maximum retries for API calls
+    max_retries: int = field(
+        default_factory=lambda: _get_env_int("INTENT_MAX_RETRIES", 3)
+    )
+
+    # Timeout for API calls in seconds
+    timeout: float = field(
+        default_factory=lambda: _get_env_float("INTENT_TIMEOUT", 10.0)
+    )
+
+
+@dataclass
 class RetrieverSettings:
     """Settings for hybrid retriever service."""
 
@@ -265,6 +301,7 @@ class Settings:
     search: SearchSettings = field(default_factory=SearchSettings)
     retriever: RetrieverSettings = field(default_factory=RetrieverSettings)
     query_transform: QueryTransformSettings = field(default_factory=QueryTransformSettings)
+    intent_classification: IntentClassificationSettings = field(default_factory=IntentClassificationSettings)
 
     # Application settings
     debug: bool = field(
