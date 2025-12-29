@@ -42,5 +42,9 @@ async def init_db() -> None:
 
 async def drop_db() -> None:
     """Drop all database tables."""
+    from sqlalchemy import text
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        # Drop all tables with CASCADE to handle foreign key constraints
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO PUBLIC"))

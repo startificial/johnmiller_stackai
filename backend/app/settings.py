@@ -118,7 +118,7 @@ class DatabaseSettings:
     url: str = field(
         default_factory=lambda: _get_env_str(
             "DATABASE_URL",
-            "postgresql+asyncpg://postgres:postgres@localhost:5432/stackai"
+            "postgresql+asyncpg://rag_user:rag_password@localhost:5432/rag_db"
         )
     )
 

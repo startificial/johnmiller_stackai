@@ -28,6 +28,8 @@ from uuid import UUID
 
 from backend.app.db.base import async_session_factory
 from backend.app.db.models import (
+    Document,
+    DocumentStatus,
     DocumentChunk,
     BM25IndexedChunk,
     BM25Vocabulary,
@@ -278,7 +280,7 @@ class BM25Index:
             page_number=chunk.metadata.get("page_number"),
             chunk_index=chunk.metadata.get("chunk_index", 0),
             position=chunk.metadata.get("position"),
-            metadata={
+            chunk_metadata={
                 "parent_id": chunk.parent_id,
             },
         )
@@ -291,7 +293,7 @@ class BM25Index:
                 "page_number": doc_chunk_stmt.excluded.page_number,
                 "chunk_index": doc_chunk_stmt.excluded.chunk_index,
                 "position": doc_chunk_stmt.excluded.position,
-                "metadata": doc_chunk_stmt.excluded.metadata,
+                "chunk_metadata": doc_chunk_stmt.excluded.chunk_metadata,
             },
         )
         await session.execute(doc_chunk_stmt)
@@ -536,7 +538,7 @@ class BM25Index:
                 DocumentChunk.level,
                 DocumentChunk.page_number,
                 DocumentChunk.chunk_index,
-                DocumentChunk.metadata,
+                DocumentChunk.chunk_metadata,
             )
             .join(
                 DocumentChunk,
@@ -568,7 +570,7 @@ class BM25Index:
                     "level": row.level,
                     "page_number": row.page_number,
                     "chunk_index": row.chunk_index,
-                    **(row.metadata or {}),
+                    **(row.chunk_metadata or {}),
                 },
             }
             for row in result

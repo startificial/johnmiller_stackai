@@ -17,8 +17,8 @@ The `test_documents/` folder contains PDF files designed to test various text ex
 
 ## Manual QA Tests
 
-When generating manual QA test plans, always save them to the `manual-qa/` folder (not the project root). Use the naming convention: `manual-qa-tests-[descriptive-name]-[number].md` where descriptive name is a brief but descriptive name describing what changes are being tested and the number is sequential to indicate what order it was generated in.
+When generating manual QA test plans, always save them to the `manual-qa/` folder (not the project root). Use the naming convention: `manual-qa-tests-[number]-[descriptive-name].md` where descriptive name is a brief but descriptive name describing what changes are being tested and the number is sequential to indicate what order it was generated in.
 
-Example: `manual-qa/manual-qa-tests-test-extraction-service-01.md`
+Example: `manual-qa/manual-qa-tests-01-test-extraction-service.md`
 
 Utilize the documents in `test_documents/` folder for generating QA test cases. 

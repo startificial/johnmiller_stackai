@@ -179,7 +179,7 @@ class StructuralChunker:
             ChunkedDocument with parent and leaf chunks
         """
         if doc_id is None:
-            doc_id = str(uuid.uuid4())[:8]
+            doc_id = str(uuid.uuid4())
 
         all_chunks: List[Chunk] = []
         chunk_counter = 0

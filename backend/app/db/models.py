@@ -84,7 +84,8 @@ class Document(Base):
     total_char_count = Column(Integer, nullable=True)
 
     # Document metadata from extraction (title, author, subject, etc.)
-    metadata = Column(JSONB, default=dict)
+    # Note: Using 'doc_metadata' to avoid conflict with SQLAlchemy's reserved 'metadata' attribute
+    doc_metadata = Column(JSONB, default=dict)
 
     # Processing status
     status = Column(
@@ -203,7 +204,8 @@ class DocumentChunk(Base):
     position = Column(Integer, nullable=True)  # Start character position in full text
 
     # Additional metadata (flexible)
-    metadata = Column(JSONB, default=dict)
+    # Note: Using 'chunk_metadata' to avoid conflict with SQLAlchemy's reserved 'metadata' attribute
+    chunk_metadata = Column(JSONB, default=dict)
 
     # Embedding for vector search (nullable until embedding service is implemented)
     # Using JSONB to store as array; can migrate to pgvector extension later
