@@ -1,0 +1,46 @@
+"""
+SQLAlchemy async engine and session configuration.
+"""
+
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import DeclarativeBase
+
+from backend.app.settings import settings
+
+
+class Base(DeclarativeBase):
+    """Base class for all SQLAlchemy models."""
+    pass
+
+
+# Create async engine
+engine = create_async_engine(
+    settings.database.url,
+    echo=settings.debug,
+    pool_pre_ping=True,
+)
+
+# Session factory for creating async sessions
+async_session_factory = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
+
+async def get_session() -> AsyncSession:
+    """Get an async database session."""
+    async with async_session_factory() as session:
+        yield session
+
+
+async def init_db() -> None:
+    """Initialize database tables."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def drop_db() -> None:
+    """Drop all database tables."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)

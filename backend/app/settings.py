@@ -34,6 +34,17 @@ def _get_env_bool(key: str, default: bool) -> bool:
     return default
 
 
+def _get_env_float(key: str, default: float) -> float:
+    """Get float from environment variable or return default."""
+    value = os.getenv(key)
+    if value is not None:
+        try:
+            return float(value)
+        except ValueError:
+            pass
+    return default
+
+
 @dataclass
 class ChunkingSettings:
     """Settings for the structural chunker."""
@@ -100,6 +111,57 @@ class EmbeddingSettings:
 
 
 @dataclass
+class DatabaseSettings:
+    """Settings for database connection."""
+
+    # PostgreSQL connection URL (async)
+    url: str = field(
+        default_factory=lambda: _get_env_str(
+            "DATABASE_URL",
+            "postgresql+asyncpg://postgres:postgres@localhost:5432/stackai"
+        )
+    )
+
+
+@dataclass
+class SearchSettings:
+    """Settings for BM25 search indexer."""
+
+    # BM25 k1 parameter: term frequency saturation (typically 1.2-2.0)
+    bm25_k1: float = field(
+        default_factory=lambda: _get_env_float("SEARCH_BM25_K1", 1.5)
+    )
+
+    # BM25 b parameter: document length normalization (0-1)
+    bm25_b: float = field(
+        default_factory=lambda: _get_env_float("SEARCH_BM25_B", 0.75)
+    )
+
+    # Tokenizer settings
+    lowercase: bool = field(
+        default_factory=lambda: _get_env_bool("SEARCH_LOWERCASE", True)
+    )
+
+    remove_stopwords: bool = field(
+        default_factory=lambda: _get_env_bool("SEARCH_REMOVE_STOPWORDS", True)
+    )
+
+    min_token_length: int = field(
+        default_factory=lambda: _get_env_int("SEARCH_MIN_TOKEN_LENGTH", 2)
+    )
+
+    # Search defaults
+    default_top_k: int = field(
+        default_factory=lambda: _get_env_int("SEARCH_DEFAULT_TOP_K", 10)
+    )
+
+    # Whether to index parent chunks in addition to leaf chunks
+    index_parents: bool = field(
+        default_factory=lambda: _get_env_bool("SEARCH_INDEX_PARENTS", False)
+    )
+
+
+@dataclass
 class Settings:
     """Main application settings container."""
 
@@ -107,6 +169,8 @@ class Settings:
     chunking: ChunkingSettings = field(default_factory=ChunkingSettings)
     text_extraction: TextExtractionSettings = field(default_factory=TextExtractionSettings)
     embedding: EmbeddingSettings = field(default_factory=EmbeddingSettings)
+    database: DatabaseSettings = field(default_factory=DatabaseSettings)
+    search: SearchSettings = field(default_factory=SearchSettings)
 
     # Application settings
     debug: bool = field(
