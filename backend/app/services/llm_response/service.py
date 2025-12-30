@@ -18,6 +18,10 @@ from backend.app.services.intent_classifier import (
 )
 from backend.app.services.query_transformer import query_transformer
 from backend.app.services.retriever import retriever, RetrievalResult
+from backend.app.services.hallucination_detector import (
+    hallucination_detector,
+    HallucinationAnalysisResult,
+)
 from backend.app.settings import settings
 
 from backend.app.services.llm_response.generator import MistralResponseGenerator
@@ -36,6 +40,9 @@ from backend.app.services.llm_response.schemas import (
     SensitiveDataResponse,
     OutOfScopeResponse,
     ClarificationResponse,
+    HallucinationBlockedResponse,
+    UnsupportedClaim,
+    ConfidenceLevel,
     IntentResponse,
 )
 from backend.app.services.policy_repository import policy_repository
@@ -212,6 +219,25 @@ class LLMResponseService:
                 user_prompt=user_prompt,
                 response_schema=response_schema,
             )
+
+        # Step 5: Post-hoc hallucination check
+        hallucination_settings = settings.hallucination
+        if hallucination_settings.enabled and sources:
+            response_text = self._extract_response_text(response)
+            if response_text:
+                hallucination_result = await hallucination_detector.check(
+                    response_text=response_text,
+                    sources=sources,
+                )
+
+                if not hallucination_result.passed:
+                    return await self._generate_hallucination_blocked_response(
+                        query=query,
+                        intent_result=intent_result,
+                        sources=sources,
+                        hallucination_result=hallucination_result,
+                        retrieval_queries=retrieval_queries,
+                    )
 
         return LLMResponseResult(
             query=query,
@@ -487,6 +513,148 @@ class LLMResponseService:
             response=response,
             sources_used=sources,
             retrieval_queries=[query],
+            model_used=self.generator.model,
+        )
+
+    def _extract_response_text(self, response: IntentResponse) -> str:
+        """
+        Extract the main text content from an intent-specific response.
+
+        Different response types have different text fields. This method
+        extracts the relevant text for hallucination verification.
+
+        Args:
+            response: The generated response object
+
+        Returns:
+            Concatenated text content for verification
+        """
+        text_parts = []
+
+        # Common fields across response types
+        if hasattr(response, 'query_understood'):
+            # Skip query_understood as it's just a paraphrase
+            pass
+
+        # Intent-specific main text fields
+        if hasattr(response, 'explanation'):
+            text_parts.append(response.explanation)
+        if hasattr(response, 'summary'):
+            text_parts.append(response.summary)
+        if hasattr(response, 'concept'):
+            text_parts.append(response.concept)
+        if hasattr(response, 'current_status'):
+            text_parts.append(response.current_status)
+        if hasattr(response, 'problem_summary'):
+            text_parts.append(response.problem_summary)
+        if hasattr(response, 'task'):
+            text_parts.append(response.task)
+        if hasattr(response, 'comparison_topic'):
+            text_parts.append(response.comparison_topic)
+        if hasattr(response, 'exploration_area'):
+            text_parts.append(response.exploration_area)
+        if hasattr(response, 'requested_action'):
+            text_parts.append(response.requested_action)
+        if hasattr(response, 'outcome'):
+            text_parts.append(response.outcome)
+
+        # List fields
+        if hasattr(response, 'key_points'):
+            text_parts.extend(response.key_points or [])
+        if hasattr(response, 'probable_causes'):
+            text_parts.extend(response.probable_causes or [])
+        if hasattr(response, 'recent_changes'):
+            text_parts.extend(response.recent_changes or [])
+
+        # Steps (for procedural responses)
+        if hasattr(response, 'steps') and response.steps:
+            for step in response.steps:
+                if hasattr(step, 'action'):
+                    text_parts.append(step.action)
+                if hasattr(step, 'details') and step.details:
+                    text_parts.append(step.details)
+
+        # Solutions (for troubleshoot responses)
+        if hasattr(response, 'solutions') and response.solutions:
+            for sol in response.solutions:
+                if hasattr(sol, 'description'):
+                    text_parts.append(sol.description)
+
+        return " ".join(filter(None, text_parts))
+
+    async def _generate_hallucination_blocked_response(
+        self,
+        query: str,
+        intent_result: IntentResult,
+        sources: List[Source],
+        hallucination_result: HallucinationAnalysisResult,
+        retrieval_queries: List[str],
+    ) -> LLMResponseResult:
+        """
+        Generate a blocked response when hallucination is detected.
+
+        Instead of returning the hallucinated response, this returns a
+        HallucinationBlockedResponse asking the user to clarify.
+
+        Args:
+            query: Original user query
+            intent_result: Intent classification result
+            sources: Retrieved sources
+            hallucination_result: Hallucination analysis result
+            retrieval_queries: Query variants used for retrieval
+
+        Returns:
+            LLMResponseResult with HallucinationBlockedResponse
+        """
+        # Convert unsupported claims to schema format
+        unsupported = [
+            UnsupportedClaim(claim=c.claim, reason=c.reason)
+            for c in hallucination_result.unsupported_claims
+        ]
+
+        # Build clarifying question
+        if unsupported:
+            claims_summary = ", ".join(c.claim[:50] for c in unsupported[:3])
+            clarifying_question = (
+                f"I found some information but couldn't fully verify my response "
+                f"against the sources. Could you rephrase your question or ask "
+                f"about specific aspects? The following claims couldn't be verified: "
+                f"{claims_summary}"
+            )
+        else:
+            clarifying_question = (
+                "I couldn't generate a fully verified response based on the available "
+                "sources. Could you try rephrasing your question or being more specific?"
+            )
+
+        response = HallucinationBlockedResponse(
+            query_understood=f"I understood you asked about: {query}",
+            confidence=ConfidenceLevel.LOW,
+            sources=sources,
+            citations=[],
+            needs_clarification=True,
+            clarifying_question=clarifying_question,
+            fallback_suggestion=(
+                "Try asking about a specific aspect mentioned in the sources, "
+                "or check if the information you need might be in a different document."
+            ),
+            unsupported_claims=unsupported,
+            hallucination_score=hallucination_result.hallucination_score,
+            reason=(
+                f"Response blocked: {len(unsupported)} claim(s) could not be "
+                f"verified against the retrieved sources (score: "
+                f"{hallucination_result.hallucination_score:.2f}, "
+                f"threshold: {settings.hallucination.threshold:.2f})"
+            ),
+        )
+
+        return LLMResponseResult(
+            query=query,
+            intent=intent_result.intent,
+            intent_confidence=intent_result.confidence,
+            response=response,
+            sources_used=sources,
+            retrieval_queries=retrieval_queries,
             model_used=self.generator.model,
         )
 

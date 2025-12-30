@@ -26,3 +26,12 @@ dev = [
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: mark test as integration test (requires DB + API keys)",
+    "performance: mark test as a performance benchmark",
+    "slow: mark test as slow running",
+]

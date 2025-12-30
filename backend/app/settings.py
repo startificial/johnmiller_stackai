@@ -341,6 +341,57 @@ class LLMResponseSettings:
 
 
 @dataclass
+class HallucinationDetectionSettings:
+    """Settings for hallucination detection service.
+
+    Post-hoc evidence check that scans LLM responses for claims not supported
+    by the retrieved sources using Mistral's fastest model.
+    """
+
+    # Mistral API key (shared with other services)
+    api_key: str = field(
+        default_factory=lambda: _get_env_str("MISTRAL_API_KEY", "")
+    )
+
+    # Model name for hallucination detection (fastest model for lowest latency)
+    # ministral-3b-latest is Mistral's fastest model
+    model_name: str = field(
+        default_factory=lambda: _get_env_str("HALLUCINATION_MODEL", "ministral-3b-latest")
+    )
+
+    # Temperature for verification (0.0 for deterministic results)
+    temperature: float = field(
+        default_factory=lambda: _get_env_float("HALLUCINATION_TEMPERATURE", 0.0)
+    )
+
+    # Maximum tokens for verification response
+    max_tokens: int = field(
+        default_factory=lambda: _get_env_int("HALLUCINATION_MAX_TOKENS", 512)
+    )
+
+    # Maximum retries for API calls
+    max_retries: int = field(
+        default_factory=lambda: _get_env_int("HALLUCINATION_MAX_RETRIES", 3)
+    )
+
+    # Timeout for API calls in seconds
+    timeout: float = field(
+        default_factory=lambda: _get_env_float("HALLUCINATION_TIMEOUT", 15.0)
+    )
+
+    # Hallucination score threshold (0.0-1.0)
+    # Responses with score > threshold will be blocked
+    threshold: float = field(
+        default_factory=lambda: _get_env_float("HALLUCINATION_THRESHOLD", 0.3)
+    )
+
+    # Whether hallucination checking is enabled
+    enabled: bool = field(
+        default_factory=lambda: _get_env_bool("HALLUCINATION_CHECK_ENABLED", True)
+    )
+
+
+@dataclass
 class Settings:
     """Main application settings container."""
 
@@ -354,6 +405,7 @@ class Settings:
     query_transform: QueryTransformSettings = field(default_factory=QueryTransformSettings)
     intent_classification: IntentClassificationSettings = field(default_factory=IntentClassificationSettings)
     llm_response: LLMResponseSettings = field(default_factory=LLMResponseSettings)
+    hallucination: HallucinationDetectionSettings = field(default_factory=HallucinationDetectionSettings)
 
     # Application settings
     debug: bool = field(

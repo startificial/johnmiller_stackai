@@ -50,6 +50,16 @@ from backend.app.services.llm_response import (
     LLMResponseGenerationError,
     LLMResponseParseError,
 )
+from backend.app.services.hallucination_detector import (
+    HallucinationDetector,
+    hallucination_detector,
+    MistralHallucinationDetector,
+    ClaimVerification,
+    HallucinationAnalysisResult,
+    HallucinationDetectionError,
+    HallucinationConfigError,
+    HallucinationAnalysisError,
+)
 
 __all__ = [
     # Search indexer
@@ -97,4 +107,13 @@ __all__ = [
     "LLMResponseConfigError",
     "LLMResponseGenerationError",
     "LLMResponseParseError",
+    # Hallucination detector
+    "HallucinationDetector",
+    "hallucination_detector",
+    "MistralHallucinationDetector",
+    "ClaimVerification",
+    "HallucinationAnalysisResult",
+    "HallucinationDetectionError",
+    "HallucinationConfigError",
+    "HallucinationAnalysisError",
 ]

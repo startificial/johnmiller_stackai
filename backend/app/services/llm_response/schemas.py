@@ -370,6 +370,53 @@ class ClarificationResponse(BaseModel):
     )
 
 
+class UnsupportedClaim(BaseModel):
+    """A claim that was not supported by the sources."""
+
+    claim: str = Field(..., description="The unsupported claim text")
+    reason: str = Field(..., description="Why the claim is not supported")
+
+
+class HallucinationBlockedResponse(BaseModel):
+    """Response when hallucination detection blocks the original response.
+
+    This is returned instead of the generated response when the hallucination
+    score exceeds the configured threshold, indicating that the response
+    contained claims not adequately supported by the retrieved sources.
+    """
+
+    intent: str = Field(default="hallucination_blocked", description="Intent type")
+    query_understood: str = Field(..., description="Paraphrase of user's query")
+    confidence: ConfidenceLevel = Field(
+        default=ConfidenceLevel.LOW,
+        description="Always low when hallucination blocked",
+    )
+    sources: List[Source] = Field(
+        default_factory=list, description="Sources that were consulted"
+    )
+    citations: List[Citation] = Field(
+        default_factory=list, description="Empty - no valid citations"
+    )
+    needs_clarification: bool = Field(
+        default=True, description="Always true when blocked"
+    )
+    clarifying_question: str = Field(
+        ..., description="Suggestion for how to rephrase the query"
+    )
+    fallback_suggestion: Optional[str] = Field(
+        None, description="Alternative approach suggestion"
+    )
+    unsupported_claims: List[UnsupportedClaim] = Field(
+        default_factory=list, description="Claims that failed verification"
+    )
+    hallucination_score: float = Field(
+        ..., ge=0.0, le=1.0, description="Score from 0 (none) to 1 (all hallucinated)"
+    )
+    reason: str = Field(
+        ..., description="Explanation of why the response was blocked"
+    )
+
+
 # Type alias for all response types
 IntentResponse = Union[
     LookupResponse,
@@ -384,6 +431,7 @@ IntentResponse = Union[
     SensitiveDataResponse,
     OutOfScopeResponse,
     ClarificationResponse,
+    HallucinationBlockedResponse,
 ]
 
 

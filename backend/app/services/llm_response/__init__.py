@@ -55,6 +55,8 @@ from backend.app.services.llm_response.schemas import (
     ActionResponse,
     OutOfScopeResponse,
     ClarificationResponse,
+    UnsupportedClaim,
+    HallucinationBlockedResponse,
     IntentResponse,
 )
 
@@ -116,6 +118,8 @@ __all__ = [
     "ActionResponse",
     "OutOfScopeResponse",
     "ClarificationResponse",
+    "UnsupportedClaim",
+    "HallucinationBlockedResponse",
     "IntentResponse",
     # Prompts
     "SYSTEM_PROMPT",
