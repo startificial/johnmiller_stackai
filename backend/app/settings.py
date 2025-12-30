@@ -7,7 +7,23 @@ All configurable parameters should be defined here for easy management.
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List
+
+# Load .env file from project root
+from dotenv import load_dotenv
+
+# Find the project root (where .env is located)
+_current_file = Path(__file__).resolve()
+_project_root = _current_file.parent.parent.parent  # backend/app/settings.py -> backend -> project root
+_env_file = _project_root / ".env"
+if _env_file.exists():
+    load_dotenv(_env_file)
+else:
+    # Try one level up if running from backend directory
+    _env_file = _project_root.parent / ".env"
+    if _env_file.exists():
+        load_dotenv(_env_file)
 
 
 def _get_env_int(key: str, default: int) -> int:
@@ -335,8 +351,11 @@ class LLMResponseSettings:
     )
 
     # Minimum relevance score threshold for sources (below this triggers clarification)
+    # With normalized RRF scores (0-1): 0.2 means document should be found in at least
+    # one search method with a reasonable rank, or in both methods with any rank.
+    # A document ranked #1 in both methods scores 1.0; ranked #30 in one method scores ~0.34
     min_relevance_threshold: float = field(
-        default_factory=lambda: _get_env_float("LLM_RESPONSE_MIN_RELEVANCE", 0.3)
+        default_factory=lambda: _get_env_float("LLM_RESPONSE_MIN_RELEVANCE", 0.2)
     )
 
 
@@ -381,8 +400,9 @@ class HallucinationDetectionSettings:
 
     # Hallucination score threshold (0.0-1.0)
     # Responses with score > threshold will be blocked
+    # 0.5 means block only if more than half of claims are unsupported
     threshold: float = field(
-        default_factory=lambda: _get_env_float("HALLUCINATION_THRESHOLD", 0.3)
+        default_factory=lambda: _get_env_float("HALLUCINATION_THRESHOLD", 0.5)
     )
 
     # Whether hallucination checking is enabled

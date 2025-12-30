@@ -1,18 +1,5 @@
 """
-Pydantic schemas for API request/response models.
-
-Ingestion Schemas:
-- IngestionResponse: Response for single document ingestion
-- BatchIngestionResponse: Response for batch document ingestion
-
-Query Schemas:
-- QueryRequest: Request for knowledge base query
-- QueryResponse: Response with intent-specific answer
-
-Chat Schemas:
-- ChatSessionCreate/Update/Response: Session management
-- ChatMessageCreate/Response: Message handling
-- ChatExportResponse: Session export format
+Pydantic models matching backend API schemas.
 """
 
 from datetime import datetime
@@ -35,8 +22,6 @@ class IngestionResponse(BaseModel):
     page_count: int = Field(..., description="Number of pages extracted")
     chunks_created: int = Field(..., description="Total chunks created")
     chunks_embedded: int = Field(..., description="Chunks with embeddings")
-
-    model_config = {"from_attributes": True}
 
 
 class IngestionError(BaseModel):
@@ -134,8 +119,6 @@ class ChatSessionResponse(BaseModel):
     updated_at: datetime = Field(..., description="Last update timestamp")
     message_count: int = Field(..., description="Number of messages in session")
 
-    model_config = {"from_attributes": True}
-
 
 class ChatMessageCreate(BaseModel):
     """Request to send a chat message."""
@@ -149,13 +132,13 @@ class ChatMessageResponse(BaseModel):
     id: int = Field(..., description="Message ID")
     role: str = Field(..., description="Message role: 'user' or 'assistant'")
     content: str = Field(..., description="Message content")
-    intent: Optional[str] = Field(None, description="Intent classification (assistant only)")
+    intent: Optional[str] = Field(
+        None, description="Intent classification (assistant only)"
+    )
     sources: Optional[list[SourceInfo]] = Field(
         None, description="Citation sources (assistant only)"
     )
     created_at: datetime = Field(..., description="Message timestamp")
-
-    model_config = {"from_attributes": True}
 
 
 class ChatExportResponse(BaseModel):
@@ -187,8 +170,6 @@ class DocumentResponse(BaseModel):
     page_count: int = Field(..., description="Number of pages")
     chunk_count: int = Field(0, description="Number of chunks created")
     created_at: datetime = Field(..., description="Upload timestamp")
-
-    model_config = {"from_attributes": True}
 
 
 class DocumentListResponse(BaseModel):

@@ -28,14 +28,22 @@ from backend.app.api.schemas import (
     ChatSessionCreate,
     ChatSessionResponse,
     ChatSessionUpdate,
+    DocumentListResponse,
+    DocumentResponse,
     IngestionError,
     IngestionResponse,
     QueryRequest,
     QueryResponse,
     SourceInfo,
 )
-from backend.app.db.base import get_session
-from backend.app.db.models import ChatMessage, ChatSession, Document, DocumentChunk
+from backend.app.db.base import async_session_factory, get_session
+from backend.app.db.models import (
+    ChatMessage,
+    ChatSession,
+    Document,
+    DocumentChunk,
+    DocumentStatus,
+)
 from backend.app.services.chunking import chunking_service
 from backend.app.services.embedding import embedding_service
 from backend.app.services.llm_response.schemas import ConversationTurn
@@ -104,6 +112,13 @@ async def ingest_documents(
                 # Step 4: Index for BM25 search
                 await search_indexer.index_chunked_document(chunked_doc)
 
+                # Step 5: Update document status to completed in database
+                async with async_session_factory() as session:
+                    doc = await session.get(Document, extracted_doc.doc_id)
+                    if doc:
+                        doc.status = DocumentStatus.COMPLETED
+                        await session.commit()
+
                 # Build success response
                 results.append(
                     IngestionResponse(
@@ -134,6 +149,74 @@ async def ingest_documents(
         total_files=len(files),
         successful=len(results),
         failed=len(errors),
+    )
+
+
+# =============================================================================
+# Document List Endpoint
+# =============================================================================
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+async def list_documents(
+    skip: int = Query(0, ge=0, description="Number of documents to skip"),
+    limit: int = Query(20, ge=1, le=100, description="Max documents to return"),
+    status: str = Query(None, description="Filter by status (e.g., 'completed')"),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    List all documents in the knowledge base with pagination.
+
+    Returns documents ordered by creation date (newest first).
+    """
+    # Build base query
+    base_query = select(Document)
+
+    # Apply status filter if provided
+    if status:
+        base_query = base_query.where(Document.status == status)
+
+    # Get total count
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total_result = await session.execute(count_query)
+    total = total_result.scalar() or 0
+
+    # Get paginated documents with chunk count
+    stmt = (
+        select(
+            Document,
+            func.count(DocumentChunk.id).label("chunk_count"),
+        )
+        .outerjoin(DocumentChunk, Document.id == DocumentChunk.document_id)
+        .group_by(Document.id)
+        .order_by(Document.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+
+    if status:
+        stmt = stmt.where(Document.status == status)
+
+    result = await session.execute(stmt)
+    rows = result.all()
+
+    documents = [
+        DocumentResponse(
+            document_id=str(doc.id),
+            filename=doc.filename,
+            status=doc.status,
+            page_count=doc.page_count or 0,
+            chunk_count=chunk_count,
+            created_at=doc.created_at,
+        )
+        for doc, chunk_count in rows
+    ]
+
+    return DocumentListResponse(
+        documents=documents,
+        total=total,
+        skip=skip,
+        limit=limit,
     )
 
 

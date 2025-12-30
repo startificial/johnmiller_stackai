@@ -3,13 +3,14 @@ Low-Level Mistral Response Generator
 
 Handles direct communication with Mistral AI API for structured response generation.
 Implements retry logic with exponential backoff and JSON response parsing.
+Uses Mistral's structured output feature for schema enforcement.
 """
 
 import asyncio
 import json
 import logging
 import re
-from typing import List, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from mistralai import Mistral
 from pydantic import BaseModel
@@ -82,6 +83,9 @@ class MistralResponseGenerator:
         """
         Generate a structured response using Mistral chat completion.
 
+        Uses Mistral's structured output feature with JSON schema to ensure
+        the response matches the expected schema exactly.
+
         Args:
             system_prompt: System instructions for the model
             user_prompt: User query and context
@@ -99,7 +103,10 @@ class MistralResponseGenerator:
             {"role": "user", "content": user_prompt},
         ]
 
-        response_text = await self._chat_completion(messages)
+        # Build JSON schema for structured output, excluding sources field
+        json_schema = self._build_llm_schema(response_schema)
+
+        response_text = await self._chat_completion(messages, json_schema=json_schema)
         return self._parse_response(response_text, response_schema)
 
     async def generate_with_history(
@@ -121,19 +128,27 @@ class MistralResponseGenerator:
         """
         full_messages = [{"role": "system", "content": system_prompt}] + messages
 
-        response_text = await self._chat_completion(full_messages)
+        # Build JSON schema for structured output, excluding sources field
+        json_schema = self._build_llm_schema(response_schema)
+
+        response_text = await self._chat_completion(full_messages, json_schema=json_schema)
         return self._parse_response(response_text, response_schema)
 
     async def _chat_completion(
         self,
         messages: List[dict],
+        json_schema: Optional[Dict[str, Any]] = None,
         retry_count: int = 0,
     ) -> str:
         """
         Execute chat completion with retry logic.
 
+        Uses Mistral's structured output feature when json_schema is provided,
+        ensuring responses match the expected schema exactly.
+
         Args:
             messages: Chat messages for the API
+            json_schema: Optional JSON schema for structured output
             retry_count: Current retry attempt
 
         Returns:
@@ -143,6 +158,19 @@ class MistralResponseGenerator:
             LLMResponseGenerationError: If all retries fail
         """
         try:
+            # Build response_format based on whether we have a schema
+            if json_schema:
+                response_format = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": json_schema.get("title", "response"),
+                        "schema": json_schema,
+                        "strict": True,
+                    },
+                }
+            else:
+                response_format = {"type": "json_object"}
+
             # Mistral SDK is synchronous, run in thread pool
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -151,7 +179,7 @@ class MistralResponseGenerator:
                     messages=messages,
                     temperature=self.temperature,
                     max_tokens=self.max_tokens,
-                    response_format={"type": "json_object"},  # Force JSON output
+                    response_format=response_format,
                 ),
             )
 
@@ -167,7 +195,7 @@ class MistralResponseGenerator:
                 # Exponential backoff
                 wait_time = 2**retry_count
                 await asyncio.sleep(wait_time)
-                return await self._chat_completion(messages, retry_count + 1)
+                return await self._chat_completion(messages, json_schema, retry_count + 1)
             else:
                 raise LLMResponseGenerationError(
                     f"Failed to generate response after {self.max_retries} retries: {e}"
@@ -290,3 +318,19 @@ class MistralResponseGenerator:
 
         # Return as-is if no pattern matched
         return text.strip()
+
+    def _build_llm_schema(self, response_schema: Type[BaseModel]) -> Dict[str, Any]:
+        """
+        Build a JSON schema for Mistral structured output.
+
+        With the new LLM-specific schemas (BaseLLMResponse and subclasses),
+        no schema manipulation is needed - these schemas don't include
+        sources or citations fields.
+
+        Args:
+            response_schema: Pydantic model to generate schema from
+
+        Returns:
+            JSON schema dict suitable for Mistral's structured output
+        """
+        return response_schema.model_json_schema()

@@ -26,6 +26,7 @@ from backend.app.settings import settings
 
 from backend.app.services.llm_response.generator import MistralResponseGenerator
 from backend.app.services.llm_response.schemas import (
+    # API Response schemas (include sources/citations)
     Source,
     ConversationTurn,
     LookupResponse,
@@ -44,6 +45,17 @@ from backend.app.services.llm_response.schemas import (
     UnsupportedClaim,
     ConfidenceLevel,
     IntentResponse,
+    # LLM Response schemas (no sources/citations - for structured output)
+    BaseLLMResponse,
+    LookupLLMResponse,
+    ExplainLLMResponse,
+    ProcedureLLMResponse,
+    TroubleshootLLMResponse,
+    CompareLLMResponse,
+    StatusLLMResponse,
+    DiscoveryLLMResponse,
+    ContactLLMResponse,
+    ActionLLMResponse,
 )
 from backend.app.services.policy_repository import policy_repository
 from backend.app.services.llm_response.prompts import (
@@ -84,7 +96,7 @@ class LLMResponseResult:
         }
 
 
-# Intent to Response Schema mapping
+# Intent to API Response Schema mapping (includes sources/citations)
 INTENT_RESPONSE_SCHEMAS: Dict[Intent, Type[BaseModel]] = {
     Intent.LOOKUP: LookupResponse,
     Intent.EXPLAIN: ExplainResponse,
@@ -97,6 +109,19 @@ INTENT_RESPONSE_SCHEMAS: Dict[Intent, Type[BaseModel]] = {
     Intent.ACTION: ActionResponse,
     Intent.SENSITIVE_DATA_REQUEST: SensitiveDataResponse,
     Intent.OUT_OF_SCOPE: OutOfScopeResponse,
+}
+
+# Intent to LLM Response Schema mapping (for structured output - no sources/citations)
+INTENT_LLM_SCHEMAS: Dict[Intent, Type[BaseLLMResponse]] = {
+    Intent.LOOKUP: LookupLLMResponse,
+    Intent.EXPLAIN: ExplainLLMResponse,
+    Intent.PROCEDURAL: ProcedureLLMResponse,
+    Intent.TROUBLESHOOT: TroubleshootLLMResponse,
+    Intent.COMPARE: CompareLLMResponse,
+    Intent.STATUS: StatusLLMResponse,
+    Intent.DISCOVERY: DiscoveryLLMResponse,
+    Intent.CONTACT: ContactLLMResponse,
+    Intent.ACTION: ActionLLMResponse,
 }
 
 
@@ -161,7 +186,10 @@ class LLMResponseService:
             intent_result = await intent_classifier.classify(query)
 
         intent = intent_result.intent
-        response_schema = INTENT_RESPONSE_SCHEMAS[intent]
+
+        # Get both schema types: LLM schema for generation, API schema for response
+        api_response_schema = INTENT_RESPONSE_SCHEMAS[intent]
+        llm_schema = INTENT_LLM_SCHEMAS.get(intent)  # None for special intents
 
         # Step 2: Handle special intents without retrieval
         if intent == Intent.OUT_OF_SCOPE:
@@ -203,22 +231,29 @@ class LLMResponseService:
             current_date=datetime.now().strftime("%Y-%m-%d"),
         )
 
-        # Generate response
+        # Generate response using LLM schema (no sources/citations)
         if conversation_history:
             messages = self._build_messages_with_history(
                 conversation_history, user_prompt
             )
-            response = await self.generator.generate_with_history(
+            llm_response = await self.generator.generate_with_history(
                 system_prompt=SYSTEM_PROMPT,
                 messages=messages,
-                response_schema=response_schema,
+                response_schema=llm_schema,
             )
         else:
-            response = await self.generator.generate(
+            llm_response = await self.generator.generate(
                 system_prompt=SYSTEM_PROMPT,
                 user_prompt=user_prompt,
-                response_schema=response_schema,
+                response_schema=llm_schema,
             )
+
+        # Convert LLM response to API response by adding sources/citations
+        response = api_response_schema(
+            **llm_response.model_dump(),
+            sources=sources,
+            citations=[],  # Citations not extracted from response text for now
+        )
 
         # Step 5: Post-hoc hallucination check
         hallucination_settings = settings.hallucination

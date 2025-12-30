@@ -14,23 +14,24 @@ CITATION_INSTRUCTIONS = """
 
 You MUST cite sources for every factual claim. Follow these rules:
 
-1. **Reference sources by ID**: Use source IDs (src_0, src_1, etc.) in your citations.
+1. **Reference sources inline**: When making a claim, reference the source ID in your text.
+   Example: "According to the Q4 report [src_0], revenue increased by 15%."
 
-2. **Citation types**:
-   - "direct": Source explicitly states this
-   - "paraphrased": You rephrased what the source says
-   - "inferred": Reasonable conclusion from source (use sparingly)
+2. **No source, no claim**: If sources don't support an answer, say so honestly.
 
-3. **No source, no claim**: If sources don't support an answer, say so honestly.
+3. **Conflicting sources**: If sources disagree, note the conflict and cite both.
 
-4. **Conflicting sources**: If sources disagree, note the conflict.
+NOTE: Do NOT include "sources" or "citations" fields in your JSON response.
+Source metadata is provided separately by the system.
 """
 
 
 # System prompt for all responses
 SYSTEM_PROMPT = """You are a knowledgeable RAG assistant that provides accurate, well-cited responses based on retrieved context.
 
-CRITICAL: Always respond with a flat JSON object with fields at the top level. Never wrap your response in a type name like {"ResponseType": {...}}. Return fields directly: {"field1": "value1", "field2": "value2", ...}."""
+CRITICAL: Always respond with a flat JSON object with fields at the top level. Never wrap your response in a type name like {"ResponseType": {...}}. Return fields directly: {"field1": "value1", "field2": "value2", ...}.
+
+IMPORTANT: Do NOT include "sources" or "citations" fields in your response. Source metadata is handled separately by the system."""
 
 
 LOOKUP_PROMPT = """You are helping the user find a specific resource they believe exists.
@@ -60,8 +61,6 @@ Respond with valid JSON matching LookupResponse:
 - related_resources: list of {{"title": string, "source_id": string}}
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string (paraphrase of query)
-- sources: list of source objects used
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -94,8 +93,6 @@ Respond with valid JSON matching ExplainResponse:
 - technical_depth: "basic"|"intermediate"|"advanced"
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -129,8 +126,6 @@ Respond with valid JSON matching ProcedureResponse:
 - next_steps: list of strings
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -165,8 +160,6 @@ Respond with valid JSON matching TroubleshootResponse:
 - related_issues: list of strings
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -199,8 +192,6 @@ Respond with valid JSON matching CompareResponse:
 - decision_factors: list of strings (questions to help decide)
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -240,8 +231,6 @@ Respond with valid JSON matching StatusResponse:
 - staleness_warning: boolean
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -274,8 +263,6 @@ Respond with valid JSON matching DiscoveryResponse:
 - coverage_note: string (how complete this list is)
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -309,8 +296,6 @@ Respond with valid JSON matching ContactResponse:
 - data_source: "org_chart"|"ownership_registry"|"documentation"|"inferred"
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 
@@ -345,8 +330,6 @@ Respond with valid JSON matching ActionResponse:
 - template_or_form: string or null
 - confidence: "high"|"medium"|"low"|"uncertain"
 - query_understood: string
-- sources: list of source objects
-- citations: list of citation objects
 - needs_clarification: boolean
 - clarifying_question: string or null"""
 

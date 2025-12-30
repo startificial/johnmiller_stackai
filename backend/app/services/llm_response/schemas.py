@@ -417,6 +417,237 @@ class HallucinationBlockedResponse(BaseModel):
     )
 
 
+# =============================================================================
+# LLM Response Schemas (for structured output generation)
+#
+# These schemas are used for Mistral structured output. They do NOT include
+# sources or citations fields - those are added by the service layer after
+# LLM generation from the retrieval pipeline.
+# =============================================================================
+
+
+class BaseLLMResponse(BaseModel):
+    """Base response for LLM generation - no sources/citations.
+
+    This schema is used for structured output generation. Sources and
+    citations are added by the service layer after LLM generation.
+    """
+
+    query_understood: str = Field(..., description="Paraphrase of user's query")
+    confidence: ConfidenceLevel = Field(
+        ..., description="Overall confidence in the response"
+    )
+    needs_clarification: bool = Field(
+        False, description="Whether clarification is needed"
+    )
+    clarifying_question: Optional[str] = Field(
+        None, description="Question to ask user if clarification needed"
+    )
+    fallback_suggestion: Optional[str] = Field(
+        None, description="Alternative suggestion if unable to fully answer"
+    )
+
+
+class LookupLLMResponse(BaseLLMResponse):
+    """LLM response for lookup intent - no sources/citations."""
+
+    intent: str = Field(default="lookup", description="Intent type")
+    found: bool = Field(..., description="Whether the resource was found")
+    resource_title: Optional[str] = Field(None, description="Title of found resource")
+    resource_url: Optional[str] = Field(None, description="URL or path to resource")
+    resource_type: Optional[str] = Field(
+        None, description="Type: doc, page, file, tool, api, etc."
+    )
+    summary: str = Field(..., description="Brief summary of what was found or not")
+    related_resources: List[Dict[str, str]] = Field(
+        default_factory=list, description="Related resources with title and source_id"
+    )
+
+
+class ExplainLLMResponse(BaseLLMResponse):
+    """LLM response for explain intent - no sources/citations."""
+
+    intent: str = Field(default="explain", description="Intent type")
+    concept: str = Field(..., description="The concept being explained")
+    explanation: str = Field(
+        ..., description="Clear explanation with inline [source_id] citations"
+    )
+    key_points: List[str] = Field(
+        default_factory=list, description="Key takeaways from the explanation"
+    )
+    analogy: Optional[str] = Field(
+        None, description="Optional analogy for understanding"
+    )
+    related_concepts: List[str] = Field(
+        default_factory=list, description="Related concepts to explore"
+    )
+    technical_depth: str = Field(
+        "intermediate", description="Depth: basic, intermediate, or advanced"
+    )
+
+
+class ProcedureLLMResponse(BaseLLMResponse):
+    """LLM response for procedural intent - no sources/citations."""
+
+    intent: str = Field(default="procedural", description="Intent type")
+    task: str = Field(..., description="The task being explained")
+    prerequisites: List[str] = Field(
+        default_factory=list, description="What's needed before starting"
+    )
+    steps: List[Step] = Field(..., min_length=1, description="Ordered steps")
+    estimated_time: Optional[str] = Field(None, description="Time estimate if known")
+    outcome: str = Field(..., description="What success looks like")
+    common_errors: List[str] = Field(
+        default_factory=list, description="Mistakes to avoid"
+    )
+    next_steps: List[str] = Field(
+        default_factory=list, description="Follow-up actions"
+    )
+
+
+class TroubleshootLLMResponse(BaseLLMResponse):
+    """LLM response for troubleshoot intent - no sources/citations."""
+
+    intent: str = Field(default="troubleshoot", description="Intent type")
+    problem_summary: str = Field(..., description="One-line problem description")
+    symptoms_identified: List[str] = Field(
+        default_factory=list, description="Observed symptoms"
+    )
+    diagnostic_questions: List[str] = Field(
+        default_factory=list, description="Questions to narrow down the issue"
+    )
+    probable_causes: List[str] = Field(
+        default_factory=list, description="Likely causes"
+    )
+    solutions: List[Solution] = Field(..., min_length=1, description="Potential fixes")
+    escalation_path: Optional[str] = Field(None, description="Who to contact if stuck")
+    related_issues: List[str] = Field(
+        default_factory=list, description="Similar known issues"
+    )
+
+
+class CompareLLMResponse(BaseLLMResponse):
+    """LLM response for compare intent - no sources/citations."""
+
+    intent: str = Field(default="compare", description="Intent type")
+    comparison_topic: str = Field(..., description="What is being compared")
+    items: List[ComparisonItem] = Field(
+        ..., min_length=2, description="Items being compared"
+    )
+    dimensions: List[str] = Field(
+        default_factory=list, description="Comparison criteria"
+    )
+    comparison_table: Dict[str, Dict[str, str]] = Field(
+        default_factory=dict,
+        description="Structured comparison: {dimension: {item: value}}",
+    )
+    recommendation: Optional[str] = Field(
+        None, description="Recommendation if warranted"
+    )
+    decision_factors: List[str] = Field(
+        default_factory=list, description="Questions to help decide"
+    )
+
+
+class StatusLLMResponse(BaseLLMResponse):
+    """LLM response for status intent - no sources/citations."""
+
+    intent: str = Field(default="status", description="Intent type")
+    subject: str = Field(..., description="What is being reported on")
+    current_status: str = Field(..., description="The current status")
+    status_type: str = Field(
+        "unknown", description="active, completed, blocked, deprecated, unknown"
+    )
+    last_updated: Optional[str] = Field(None, description="When source was updated")
+    source_freshness: str = Field(
+        "unknown", description="current, recent, stale, or unknown"
+    )
+    recent_changes: List[str] = Field(
+        default_factory=list, description="Recent changes"
+    )
+    next_expected_update: Optional[str] = Field(None, description="Next update if known")
+    owner: Optional[str] = Field(None, description="Responsible party")
+    staleness_warning: bool = Field(
+        False, description="Whether source data may be outdated"
+    )
+
+
+class DiscoveryLLMResponse(BaseLLMResponse):
+    """LLM response for discovery intent - no sources/citations."""
+
+    intent: str = Field(default="discovery", description="Intent type")
+    exploration_area: str = Field(..., description="What is being explored")
+    items_found: List[DiscoveryItem] = Field(
+        default_factory=list, description="Discovered items"
+    )
+    categories: List[str] = Field(default_factory=list, description="Groupings found")
+    suggested_filters: List[str] = Field(
+        default_factory=list, description="Ways to narrow down"
+    )
+    follow_up_queries: List[str] = Field(
+        default_factory=list, description="Suggested next questions"
+    )
+    coverage_note: str = Field(
+        ..., description="How complete this list is"
+    )
+
+
+class ContactLLMResponse(BaseLLMResponse):
+    """LLM response for contact intent - no sources/citations."""
+
+    intent: str = Field(default="contact", description="Intent type")
+    subject: str = Field(..., description="What/who is being looked up")
+    primary_contact: Optional[Contact] = Field(
+        None, description="Main contact if found"
+    )
+    alternative_contacts: List[Contact] = Field(
+        default_factory=list, description="Other contacts"
+    )
+    escalation_path: Optional[str] = Field(None, description="How to escalate")
+    contact_method: str = Field(
+        ..., description="Recommended way to reach out"
+    )
+    office_hours: Optional[str] = Field(None, description="Availability if known")
+    data_source: str = Field(
+        "documentation",
+        description="org_chart, ownership_registry, documentation, or inferred",
+    )
+
+
+class ActionLLMResponse(BaseLLMResponse):
+    """LLM response for action intent - no sources/citations."""
+
+    intent: str = Field(default="action", description="Intent type")
+    requested_action: str = Field(..., description="What they want done")
+    can_self_serve: bool = Field(
+        ..., description="Whether user can do it themselves"
+    )
+    self_serve_instructions: Optional[str] = Field(
+        None, description="How to do it themselves"
+    )
+    requires_human: bool = Field(
+        ..., description="Whether human intervention needed"
+    )
+    handoff_target: Optional[str] = Field(None, description="Who handles this")
+    handoff_channel: Optional[str] = Field(None, description="How to submit request")
+    expected_sla: Optional[str] = Field(None, description="Turnaround time")
+    template_or_form: Optional[str] = Field(None, description="Link to form if any")
+
+
+# Type alias for LLM response types (used for structured output generation)
+LLMIntentResponse = Union[
+    LookupLLMResponse,
+    ExplainLLMResponse,
+    ProcedureLLMResponse,
+    TroubleshootLLMResponse,
+    CompareLLMResponse,
+    StatusLLMResponse,
+    DiscoveryLLMResponse,
+    ContactLLMResponse,
+    ActionLLMResponse,
+]
+
+
 # Type alias for all response types
 IntentResponse = Union[
     LookupResponse,

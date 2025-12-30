@@ -340,6 +340,9 @@ class HybridRetriever:
 
         RRF formula: score(d) = Σ (weight / (k + rank(d)))
 
+        Scores are normalized to 0-1 range by dividing by the theoretical
+        maximum (when a document is ranked #1 in both search methods).
+
         Args:
             semantic_results: Results from semantic search
             keyword_results: Results from keyword search
@@ -350,6 +353,10 @@ class HybridRetriever:
         k = self._settings.rrf_k
         semantic_weight = self._settings.semantic_weight
         keyword_weight = self._settings.keyword_weight
+
+        # Calculate theoretical maximum RRF score for normalization
+        # Max occurs when document is rank 1 in both methods
+        max_rrf_score = (semantic_weight + keyword_weight) / (k + 1)
 
         # Build lookup maps by chunk_id
         # Maps: chunk_id -> (rank, scored_chunk)
@@ -392,6 +399,9 @@ class HybridRetriever:
                 if chunk_data is None:
                     chunk_data = chunk
 
+            # Normalize RRF score to 0-1 range
+            normalized_rrf_score = rrf_score / max_rrf_score if max_rrf_score > 0 else 0.0
+
             # Create result
             result = RetrievalResult(
                 chunk_id=chunk_data.chunk_id,
@@ -402,7 +412,7 @@ class HybridRetriever:
                 chunk_index=chunk_data.chunk_index,
                 semantic_score=semantic_score,
                 keyword_score=keyword_score,
-                rrf_score=rrf_score,
+                rrf_score=normalized_rrf_score,
                 semantic_rank=semantic_rank,
                 keyword_rank=keyword_rank,
                 metadata=chunk_data.metadata,
