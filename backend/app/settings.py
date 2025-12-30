@@ -145,13 +145,27 @@ class EmbeddingSettings:
 class DatabaseSettings:
     """Settings for database connection."""
 
-    # PostgreSQL connection URL (async)
-    url: str = field(
-        default_factory=lambda: _get_env_str(
-            "DATABASE_URL",
-            "postgresql+asyncpg://rag_user:rag_password@localhost:5432/rag_db"
-        )
+    # PostgreSQL connection components
+    host: str = field(
+        default_factory=lambda: _get_env_str("POSTGRES_HOST", "localhost")
     )
+    port: int = field(
+        default_factory=lambda: _get_env_int("POSTGRES_PORT", 5432)
+    )
+    user: str = field(
+        default_factory=lambda: _get_env_str("POSTGRES_USER", "rag_user")
+    )
+    password: str = field(
+        default_factory=lambda: _get_env_str("POSTGRES_PASSWORD", "rag_password")
+    )
+    database: str = field(
+        default_factory=lambda: _get_env_str("POSTGRES_DB", "rag_db")
+    )
+
+    @property
+    def url(self) -> str:
+        """Construct PostgreSQL connection URL (async) from components."""
+        return f"postgresql+asyncpg://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
 
 
 @dataclass
