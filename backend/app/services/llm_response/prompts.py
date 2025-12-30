@@ -28,7 +28,9 @@ You MUST cite sources for every factual claim. Follow these rules:
 
 
 # System prompt for all responses
-SYSTEM_PROMPT = """You are a knowledgeable RAG assistant that provides accurate, well-cited responses based on retrieved context. Always respond with valid JSON matching the specified schema."""
+SYSTEM_PROMPT = """You are a knowledgeable RAG assistant that provides accurate, well-cited responses based on retrieved context.
+
+CRITICAL: Always respond with a flat JSON object with fields at the top level. Never wrap your response in a type name like {"ResponseType": {...}}. Return fields directly: {"field1": "value1", "field2": "value2", ...}."""
 
 
 LOOKUP_PROMPT = """You are helping the user find a specific resource they believe exists.
@@ -388,11 +390,17 @@ CLARIFICATION_PROMPT = """You need to ask for clarification because the retrieve
 {conversation_context}
 
 ## Response Format (JSON)
-Respond with valid JSON matching ClarificationResponse:
+Respond with a flat JSON object (NOT wrapped in a type name). Include these fields directly at the top level:
+- intent: "clarification_needed"
 - query_understood: string
 - reason: string (why clarification is needed)
 - suggestions: list of strings (ways to rephrase)
-- partial_answer: string or null"""
+- partial_answer: string or null
+
+Example format:
+{{"intent": "clarification_needed", "query_understood": "...", "reason": "...", "suggestions": [...], "partial_answer": null}}
+
+IMPORTANT: Return fields directly, NOT wrapped like {{"ClarificationResponse": {{...}}}}"""
 
 
 # Prompt registry for easy lookup by intent

@@ -7,6 +7,7 @@ Implements retry logic with exponential backoff and JSON response parsing.
 
 import asyncio
 import json
+import logging
 import re
 from typing import List, Optional, Type
 
@@ -19,6 +20,8 @@ from backend.app.services.llm_response.exceptions import (
     LLMResponseGenerationError,
     LLMResponseParseError,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class MistralResponseGenerator:
@@ -51,7 +54,9 @@ class MistralResponseGenerator:
         """
         llm_settings = settings.llm_response
 
-        self.api_key = api_key or llm_settings.api_key
+        # Only fallback to settings if api_key is None (not passed)
+        # Empty string should be treated as explicitly "no key"
+        self.api_key = api_key if api_key is not None else llm_settings.api_key
         self.model = model or llm_settings.model_name
         self.temperature = (
             temperature if temperature is not None else llm_settings.temperature
@@ -176,6 +181,9 @@ class MistralResponseGenerator:
         """
         Parse and validate the model response.
 
+        Handles both flat JSON structures and nested structures where the
+        response type is used as a wrapper key (e.g., {"ClarificationResponse": {...}}).
+
         Args:
             response_text: Raw response from the model
             response_schema: Pydantic model for validation
@@ -189,15 +197,76 @@ class MistralResponseGenerator:
         try:
             # Extract JSON from response (handle markdown code blocks)
             json_str = self._extract_json(response_text)
+            logger.debug(f"Extracted JSON string (first 500 chars): {json_str[:500]}")
+
             data = json.loads(json_str)
-            return response_schema.model_validate(data)
+            logger.debug(f"Parsed JSON keys: {list(data.keys()) if isinstance(data, dict) else type(data)}")
+
+            # Handle nested response structures where LLM wraps response in schema name
+            # e.g., {"ClarificationResponse": {"query_understood": "...", ...}}
+            original_data = data
+            data = self._unwrap_nested_response(data, response_schema)
+
+            if data is not original_data:
+                logger.debug(f"Unwrapped nested response for schema {response_schema.__name__}")
+
+            validated = response_schema.model_validate(data)
+            logger.debug(f"Successfully validated response as {response_schema.__name__}")
+            return validated
 
         except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}. Response text: {response_text[:500]}")
             raise LLMResponseParseError(
                 f"Failed to parse JSON response: {response_text[:500]}"
             ) from e
         except Exception as e:
+            logger.error(f"Validation error for {response_schema.__name__}: {e}")
             raise LLMResponseParseError(f"Failed to validate response: {e}") from e
+
+    def _unwrap_nested_response(
+        self,
+        data: dict,
+        response_schema: Type[BaseModel],
+    ) -> dict:
+        """
+        Unwrap nested response structures if the LLM wrapped the response.
+
+        Some LLMs return responses like {"ResponseType": {...actual_data...}}.
+        This method detects and unwraps such structures.
+
+        Args:
+            data: Parsed JSON data
+            response_schema: Expected response schema
+
+        Returns:
+            Unwrapped data dictionary
+        """
+        if not isinstance(data, dict):
+            return data
+
+        schema_name = response_schema.__name__
+
+        # Check if the data is wrapped in the schema name
+        if schema_name in data and len(data) == 1:
+            inner_data = data[schema_name]
+            if isinstance(inner_data, dict):
+                return inner_data
+
+        # Also check for common variations (camelCase, snake_case)
+        # e.g., "clarification_response" or "clarificationResponse"
+        snake_case_name = self._to_snake_case(schema_name)
+        if snake_case_name in data and len(data) == 1:
+            inner_data = data[snake_case_name]
+            if isinstance(inner_data, dict):
+                return inner_data
+
+        return data
+
+    def _to_snake_case(self, name: str) -> str:
+        """Convert CamelCase to snake_case."""
+        import re
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
     def _extract_json(self, text: str) -> str:
         """

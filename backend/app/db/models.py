@@ -11,12 +11,17 @@ BM25 Search Index Tables:
 - BM25Vocabulary: Maps terms to IDs and tracks document frequency
 - BM25Posting: Inverted index mapping terms to chunks with term frequencies
 - BM25CorpusStats: Singleton table for corpus-wide statistics
+
+Chat Tables:
+- ChatSession: A conversation session with optional document filtering
+- ChatMessage: Individual messages within a chat session
 """
 
 from datetime import datetime
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
+    ARRAY,
     Column,
     Integer,
     BigInteger,
@@ -361,3 +366,90 @@ class BM25CorpusStats(Base):
 
     def __repr__(self) -> str:
         return f"<BM25CorpusStats(total_docs={self.total_documents}, avgdl={self.avg_document_length:.2f})>"
+
+
+# =============================================================================
+# Chat Models
+# =============================================================================
+
+
+class ChatSession(Base):
+    """
+    A chat session containing a sequence of messages.
+
+    Sessions can optionally be restricted to specific documents using filter_doc_ids,
+    which limits retrieval to only those documents during chat.
+    """
+
+    __tablename__ = "chat_sessions"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=func.gen_random_uuid(),
+    )
+    title = Column(String(255), nullable=True)
+    filter_doc_ids = Column(ARRAY(String), nullable=True)  # Restrict to specific documents
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    # Relationships
+    messages = relationship(
+        "ChatMessage",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        order_by="ChatMessage.created_at",
+    )
+
+    __table_args__ = (
+        Index("ix_chat_sessions_created_at", "created_at"),
+        Index("ix_chat_sessions_updated_at", "updated_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ChatSession(id='{self.id}', title='{self.title}')>"
+
+
+class ChatMessage(Base):
+    """
+    A single message within a chat session.
+
+    Stores both user queries and assistant responses, along with
+    metadata about intent classification and source citations.
+    """
+
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role = Column(String(20), nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)
+
+    # Assistant response metadata
+    intent = Column(String(50), nullable=True)  # Intent classification result
+    response_metadata = Column(JSONB, nullable=True)  # Sources, confidence, etc.
+
+    # Timestamps
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    # Relationships
+    session = relationship("ChatSession", back_populates="messages")
+
+    __table_args__ = (
+        Index("ix_chat_messages_session_created", "session_id", "created_at"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ChatMessage(id={self.id}, session_id='{self.session_id}', role='{self.role}')>"
