@@ -1,0 +1,38 @@
+category: legal
+name: "Legal Advice Restriction"
+description: "Policy restricting legal advice and opinions"
+policy_text: |
+  This system is not authorized to provide legal advice, legal opinions,
+  or guidance on legal matters. This includes but is not limited to:
+  - Interpretation of contracts or legal documents
+  - Advice on legal liability or legal action
+  - Guidance on regulatory compliance
+  - Opinion on the legality of any action
+  Users seeking legal assistance should consult with a qualified
+  legal professional or attorney.
+keywords:
+  - legal advice
+  - legal action
+  - lawsuit
+  - sue
+  - suing
+  - contract interpretation
+  - liability
+  - liable
+  - compliance
+  - lawyer
+  - attorney
+  - court
+  - enforceable
+  - legally binding
+  - legal rights
+  - legal opinion
+  - litigation
+  - damages
+  - negligence
+terms: []
+examples:
+  - "Legal counsel"
+  - "Contract interpretation"
+  - "Liability assessment"
+  - "Regulatory compliance advice"

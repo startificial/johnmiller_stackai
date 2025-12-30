@@ -1,0 +1,32 @@
+category: pci
+name: "Payment Card Industry Data"
+description: "Policy restricting PCI-DSS protected data"
+policy_text: |
+  We do not store, process, or transmit payment card information in
+  compliance with PCI-DSS requirements. Requests for the following
+  cannot be fulfilled:
+  - Credit or debit card numbers
+  - Card verification values (CVV/CVC)
+  - Card expiration dates
+  - Cardholder names linked to card data
+  - PIN numbers or authentication data
+keywords:
+  - credit card
+  - debit card
+  - card number
+  - cvv
+  - cvc
+  - expiration date
+  - cardholder
+  - payment details
+  - account number
+  - pin
+  - card data
+  - payment card
+  - bank account
+  - routing number
+examples:
+  - "Credit card numbers"
+  - "CVV/security codes"
+  - "Cardholder data"
+  - "Payment account information"

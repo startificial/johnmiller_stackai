@@ -1,0 +1,37 @@
+category: medical
+name: "Medical Information Restriction"
+description: "Policy restricting medical data and health advice"
+policy_text: |
+  This system does not provide medical advice, diagnoses, treatment
+  recommendations, or access to protected health information (PHI).
+  This includes but is not limited to:
+  - Medical diagnoses or symptom assessment
+  - Treatment or medication recommendations
+  - Patient health records
+  - Mental health advice
+  Users should consult a qualified healthcare provider for
+  medical concerns.
+keywords:
+  - medical advice
+  - diagnosis
+  - diagnose
+  - treatment
+  - medication
+  - prescription
+  - patient records
+  - health records
+  - symptoms
+  - medical condition
+  - therapy
+  - mental health
+  - disease
+  - illness
+  - dosage
+  - side effects
+  - clinical
+  - healthcare
+examples:
+  - "Patient records"
+  - "Medical diagnoses"
+  - "Treatment recommendations"
+  - "Prescription information"

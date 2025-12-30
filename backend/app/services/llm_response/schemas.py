@@ -315,6 +315,30 @@ class ActionResponse(BaseResponse):
     template_or_form: Optional[str] = Field(None, description="Link to form if any")
 
 
+class SensitiveDataResponse(BaseModel):
+    """Response for sensitive_data_request intent - PII/Legal/Medical/PCI requests."""
+
+    intent: str = Field(default="sensitive_data_request", description="Intent type")
+    request_declined: bool = Field(
+        default=True, description="Always true - request is declined"
+    )
+    query_understood: str = Field(..., description="Paraphrase of what user asked")
+    detected_categories: List[str] = Field(
+        ..., description="Which categories: pii, legal, medical, pci"
+    )
+    applicable_policies: List[str] = Field(
+        ..., description="Policy summaries that apply"
+    )
+    explanation: str = Field(..., description="Why the request was declined")
+    alternative_suggestion: Optional[str] = Field(
+        None, description="What user could do instead"
+    )
+    confidence: ConfidenceLevel = Field(
+        default=ConfidenceLevel.HIGH,
+        description="Always high for policy enforcement",
+    )
+
+
 class OutOfScopeResponse(BaseModel):
     """Response for out_of_scope intent - unrelated queries."""
 
@@ -357,6 +381,7 @@ IntentResponse = Union[
     DiscoveryResponse,
     ContactResponse,
     ActionResponse,
+    SensitiveDataResponse,
     OutOfScopeResponse,
     ClarificationResponse,
 ]

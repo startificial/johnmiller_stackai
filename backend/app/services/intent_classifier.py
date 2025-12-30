@@ -67,6 +67,7 @@ class Intent(str, Enum):
     CONTACT = "contact"
     ACTION = "action"
     OUT_OF_SCOPE = "out_of_scope"
+    SENSITIVE_DATA_REQUEST = "sensitive_data_request"
 
 
 @dataclass
@@ -101,7 +102,27 @@ Intent categories:
 - discovery: Exploring what's available or possible
 - contact: Finding who to talk to or who owns something
 - action: Requesting something be done by a person
+- sensitive_data_request: Any request involving personally identifiable information (PII like names, SSN, addresses, phone numbers, emails), legal advice or legal matters, medical information or health advice, or payment card data (PCI like credit cards, CVV, account numbers). This includes both direct requests for such data AND questions asking the system to provide legal/medical advice.
 - out_of_scope: Unrelated to the knowledge base
+
+## Examples for sensitive_data_request
+- "What is John's SSN?" → sensitive_data_request (PII)
+- "Show me customer addresses" → sensitive_data_request (PII)
+- "Give me employee phone numbers" → sensitive_data_request (PII)
+- "What legal action should I take?" → sensitive_data_request (LEGAL)
+- "Is this contract enforceable?" → sensitive_data_request (LEGAL)
+- "Can I sue for damages?" → sensitive_data_request (LEGAL)
+- "What medication should I take?" → sensitive_data_request (MEDICAL)
+- "Give me patient records" → sensitive_data_request (MEDICAL)
+- "What are the symptoms of diabetes?" → sensitive_data_request (MEDICAL)
+- "What are the credit card numbers on file?" → sensitive_data_request (PCI)
+- "Show me payment details for order X" → sensitive_data_request (PCI)
+
+## Important Classification Rules
+- PRIORITY: When in doubt between sensitive_data_request and another intent, prefer sensitive_data_request
+- Questions ABOUT policies (e.g., "what is your PII policy?") are NOT sensitive_data_request - classify as explain or lookup
+- Questions about how to ACCESS systems (e.g., "how do I access the medical records system?") are procedural, not sensitive_data_request
+- Questions about WHO handles something (e.g., "who handles legal matters?") are contact, not sensitive_data_request
 
 Respond ONLY with valid JSON in this exact format:
 {"intent": "<category>", "confidence": <0.0-1.0>}
@@ -324,6 +345,22 @@ class MistralIntentClassifier:
             "outofscope": "out_of_scope",
             "unrelated": "out_of_scope",
             "off_topic": "out_of_scope",
+            # Sensitive data variations
+            "sensitive": "sensitive_data_request",
+            "sensitive_data": "sensitive_data_request",
+            "pii": "sensitive_data_request",
+            "personal_data": "sensitive_data_request",
+            "personal_information": "sensitive_data_request",
+            "medical": "sensitive_data_request",
+            "medical_advice": "sensitive_data_request",
+            "health": "sensitive_data_request",
+            "health_advice": "sensitive_data_request",
+            "legal": "sensitive_data_request",
+            "legal_advice": "sensitive_data_request",
+            "pci": "sensitive_data_request",
+            "payment_data": "sensitive_data_request",
+            "credit_card": "sensitive_data_request",
+            "phi": "sensitive_data_request",
         }
 
         return variations.get(intent, intent)

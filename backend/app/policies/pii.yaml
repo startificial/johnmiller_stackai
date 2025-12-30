@@ -1,0 +1,34 @@
+category: pii
+name: "Personally Identifiable Information"
+description: "Policy restricting access to personal data"
+policy_text: |
+  We do not disclose, process requests for, or provide access to personally
+  identifiable information (PII). This includes but is not limited to:
+  - Full names linked to other identifying information
+  - Social Security Numbers or government IDs
+  - Home addresses or personal contact information
+  - Phone numbers and personal email addresses
+  - Financial account numbers
+  - Biometric data
+  - Any data that can directly identify an individual
+keywords:
+  - ssn
+  - social security
+  - address
+  - phone number
+  - email address
+  - date of birth
+  - dob
+  - personal information
+  - customer data
+  - employee records
+  - personal data
+  - private information
+  - identity
+  - driver license
+  - passport
+examples:
+  - "Social security numbers"
+  - "Home addresses"
+  - "Personal phone numbers"
+  - "Employee personal records"

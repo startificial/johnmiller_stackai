@@ -33,10 +33,12 @@ from backend.app.services.llm_response.schemas import (
     DiscoveryResponse,
     ContactResponse,
     ActionResponse,
+    SensitiveDataResponse,
     OutOfScopeResponse,
     ClarificationResponse,
     IntentResponse,
 )
+from backend.app.services.policy_repository import policy_repository
 from backend.app.services.llm_response.prompts import (
     SYSTEM_PROMPT,
     CITATION_INSTRUCTIONS,
@@ -86,6 +88,7 @@ INTENT_RESPONSE_SCHEMAS: Dict[Intent, Type[BaseModel]] = {
     Intent.DISCOVERY: DiscoveryResponse,
     Intent.CONTACT: ContactResponse,
     Intent.ACTION: ActionResponse,
+    Intent.SENSITIVE_DATA_REQUEST: SensitiveDataResponse,
     Intent.OUT_OF_SCOPE: OutOfScopeResponse,
 }
 
@@ -153,9 +156,14 @@ class LLMResponseService:
         intent = intent_result.intent
         response_schema = INTENT_RESPONSE_SCHEMAS[intent]
 
-        # Step 2: Handle out_of_scope without retrieval
+        # Step 2: Handle special intents without retrieval
         if intent == Intent.OUT_OF_SCOPE:
             return await self._generate_out_of_scope_response(
+                query, intent_result, conversation_history
+            )
+
+        if intent == Intent.SENSITIVE_DATA_REQUEST:
+            return await self._generate_sensitive_data_response(
                 query, intent_result, conversation_history
             )
 
@@ -396,6 +404,52 @@ class LLMResponseService:
         return LLMResponseResult(
             query=query,
             intent=Intent.OUT_OF_SCOPE,
+            intent_confidence=intent_result.confidence,
+            response=response,
+            sources_used=[],
+            retrieval_queries=[],
+            model_used=self.generator.model,
+        )
+
+    async def _generate_sensitive_data_response(
+        self,
+        query: str,
+        intent_result: IntentResult,
+        conversation_history: Optional[List[ConversationTurn]] = None,
+    ) -> LLMResponseResult:
+        """Generate response for sensitive data requests without retrieval.
+
+        Uses the policy repository to include relevant policies in the prompt.
+        """
+        prompt_template = get_prompt_for_intent(Intent.SENSITIVE_DATA_REQUEST)
+        conversation_context = self._format_conversation_history(conversation_history)
+
+        # Detect which policy categories might be relevant based on the query
+        detected_categories = policy_repository.detect_categories(query)
+
+        # If no categories detected by keywords, include all for safety
+        if not detected_categories:
+            detected_categories = list(policy_repository.get_all_policies().keys())
+
+        # Format policies for inclusion in the prompt
+        policies_text = policy_repository.format_policies_for_prompt(detected_categories)
+
+        user_prompt = prompt_template.format(
+            policies=policies_text,
+            detected_categories=", ".join(detected_categories),
+            query=query,
+            conversation_context=conversation_context,
+        )
+
+        response = await self.generator.generate(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            response_schema=SensitiveDataResponse,
+        )
+
+        return LLMResponseResult(
+            query=query,
+            intent=Intent.SENSITIVE_DATA_REQUEST,
             intent_confidence=intent_result.confidence,
             response=response,
             sources_used=[],

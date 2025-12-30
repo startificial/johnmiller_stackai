@@ -351,6 +351,36 @@ Respond with valid JSON matching ActionResponse:
 - clarifying_question: string or null"""
 
 
+SENSITIVE_DATA_PROMPT = """You must decline this request because it involves restricted data categories.
+
+## Applicable Policies
+{policies}
+
+## Detected Categories
+{detected_categories}
+
+## User Query
+{query}
+
+{conversation_context}
+
+## Your Task
+1. Acknowledge what the user asked for
+2. Firmly but politely decline the request
+3. Explain which policy/policies apply and why
+4. If appropriate, suggest what the user CAN do (e.g., rephrase to ask about the policy itself, or contact appropriate personnel)
+
+## Response Format (JSON)
+Respond with valid JSON matching SensitiveDataResponse:
+- request_declined: true (always)
+- query_understood: string (paraphrase of what user asked)
+- detected_categories: list of strings (pii, legal, medical, pci)
+- applicable_policies: list of policy summaries that apply
+- explanation: string explaining why this cannot be fulfilled
+- alternative_suggestion: string or null (what user could do instead)
+- confidence: "high" (always high for policy enforcement)"""
+
+
 OUT_OF_SCOPE_PROMPT = """You are explaining that the query is outside the knowledge base scope.
 
 ## Your Task
@@ -414,6 +444,7 @@ INTENT_PROMPTS = {
     Intent.DISCOVERY: DISCOVERY_PROMPT,
     Intent.CONTACT: CONTACT_PROMPT,
     Intent.ACTION: ACTION_PROMPT,
+    Intent.SENSITIVE_DATA_REQUEST: SENSITIVE_DATA_PROMPT,
     Intent.OUT_OF_SCOPE: OUT_OF_SCOPE_PROMPT,
 }
 
