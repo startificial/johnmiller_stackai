@@ -290,6 +290,57 @@ class RetrieverSettings:
 
 
 @dataclass
+class LLMResponseSettings:
+    """Settings for LLM response generation service."""
+
+    # Mistral API key (shared with other services)
+    api_key: str = field(
+        default_factory=lambda: _get_env_str("MISTRAL_API_KEY", "")
+    )
+
+    # Model name for response generation (most powerful model)
+    # mistral-large-latest is Mistral's most capable model
+    model_name: str = field(
+        default_factory=lambda: _get_env_str("LLM_RESPONSE_MODEL", "mistral-large-latest")
+    )
+
+    # Temperature for generation (lower = more focused responses)
+    temperature: float = field(
+        default_factory=lambda: _get_env_float("LLM_RESPONSE_TEMPERATURE", 0.3)
+    )
+
+    # Maximum tokens for response generation
+    max_tokens: int = field(
+        default_factory=lambda: _get_env_int("LLM_RESPONSE_MAX_TOKENS", 2048)
+    )
+
+    # Maximum retries for API calls
+    max_retries: int = field(
+        default_factory=lambda: _get_env_int("LLM_RESPONSE_MAX_RETRIES", 3)
+    )
+
+    # Timeout for API calls in seconds
+    timeout: float = field(
+        default_factory=lambda: _get_env_float("LLM_RESPONSE_TIMEOUT", 60.0)
+    )
+
+    # Number of chunks to retrieve per query variant
+    retrieval_top_k: int = field(
+        default_factory=lambda: _get_env_int("LLM_RESPONSE_RETRIEVAL_TOP_K", 10)
+    )
+
+    # Maximum chunks to include in context
+    max_context_chunks: int = field(
+        default_factory=lambda: _get_env_int("LLM_RESPONSE_MAX_CONTEXT_CHUNKS", 8)
+    )
+
+    # Minimum relevance score threshold for sources (below this triggers clarification)
+    min_relevance_threshold: float = field(
+        default_factory=lambda: _get_env_float("LLM_RESPONSE_MIN_RELEVANCE", 0.3)
+    )
+
+
+@dataclass
 class Settings:
     """Main application settings container."""
 
@@ -302,6 +353,7 @@ class Settings:
     retriever: RetrieverSettings = field(default_factory=RetrieverSettings)
     query_transform: QueryTransformSettings = field(default_factory=QueryTransformSettings)
     intent_classification: IntentClassificationSettings = field(default_factory=IntentClassificationSettings)
+    llm_response: LLMResponseSettings = field(default_factory=LLMResponseSettings)
 
     # Application settings
     debug: bool = field(

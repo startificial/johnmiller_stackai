@@ -1,0 +1,441 @@
+"""
+High-Level LLM Response Service
+
+Orchestrates the RAG response pipeline: intent classification, query transformation,
+retrieval, and structured response generation with citations.
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Type
+
+from pydantic import BaseModel
+
+from backend.app.services.intent_classifier import (
+    Intent,
+    IntentResult,
+    intent_classifier,
+)
+from backend.app.services.query_transformer import query_transformer
+from backend.app.services.retriever import retriever, RetrievalResult
+from backend.app.settings import settings
+
+from backend.app.services.llm_response.generator import MistralResponseGenerator
+from backend.app.services.llm_response.schemas import (
+    Source,
+    ConversationTurn,
+    LookupResponse,
+    ExplainResponse,
+    ProcedureResponse,
+    TroubleshootResponse,
+    CompareResponse,
+    StatusResponse,
+    DiscoveryResponse,
+    ContactResponse,
+    ActionResponse,
+    OutOfScopeResponse,
+    ClarificationResponse,
+    IntentResponse,
+)
+from backend.app.services.llm_response.prompts import (
+    SYSTEM_PROMPT,
+    CITATION_INSTRUCTIONS,
+    CLARIFICATION_PROMPT,
+    get_prompt_for_intent,
+    requires_kb_retrieval,
+)
+from backend.app.services.llm_response.exceptions import (
+    LLMResponseError,
+    InsufficientContextError,
+)
+
+
+@dataclass
+class LLMResponseResult:
+    """Complete result from LLM response generation."""
+
+    query: str
+    intent: Intent
+    intent_confidence: float
+    response: IntentResponse
+    sources_used: List[Source]
+    retrieval_queries: List[str]
+    model_used: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            "query": self.query,
+            "intent": self.intent.value,
+            "intent_confidence": self.intent_confidence,
+            "response": self.response.model_dump() if hasattr(self.response, 'model_dump') else self.response.__dict__,
+            "sources_used": [s.model_dump() for s in self.sources_used],
+            "retrieval_queries": self.retrieval_queries,
+            "model_used": self.model_used,
+        }
+
+
+# Intent to Response Schema mapping
+INTENT_RESPONSE_SCHEMAS: Dict[Intent, Type[BaseModel]] = {
+    Intent.LOOKUP: LookupResponse,
+    Intent.EXPLAIN: ExplainResponse,
+    Intent.PROCEDURAL: ProcedureResponse,
+    Intent.TROUBLESHOOT: TroubleshootResponse,
+    Intent.COMPARE: CompareResponse,
+    Intent.STATUS: StatusResponse,
+    Intent.DISCOVERY: DiscoveryResponse,
+    Intent.CONTACT: ContactResponse,
+    Intent.ACTION: ActionResponse,
+    Intent.OUT_OF_SCOPE: OutOfScopeResponse,
+}
+
+
+class LLMResponseService:
+    """
+    High-level LLM response service for the RAG pipeline.
+
+    Orchestrates intent classification, query transformation, retrieval,
+    and response generation to produce intent-aware responses with citations.
+    """
+
+    def __init__(
+        self,
+        generator: Optional[MistralResponseGenerator] = None,
+    ):
+        """
+        Initialize the LLM response service.
+
+        Args:
+            generator: MistralResponseGenerator instance (created lazily if not provided)
+        """
+        self._generator = generator
+        self._settings = settings.llm_response
+
+    @property
+    def generator(self) -> MistralResponseGenerator:
+        """Lazily initialize the generator to avoid requiring API key at import."""
+        if self._generator is None:
+            self._generator = MistralResponseGenerator()
+        return self._generator
+
+    async def generate_response(
+        self,
+        query: str,
+        intent_result: Optional[IntentResult] = None,
+        conversation_history: Optional[List[ConversationTurn]] = None,
+        filter_doc_ids: Optional[List[str]] = None,
+    ) -> LLMResponseResult:
+        """
+        Generate an intent-aware response for a user query.
+
+        This is the main entry point for the RAG response pipeline:
+        1. Classify intent (if not provided)
+        2. Transform query into variants (for KB-dependent intents)
+        3. Retrieve relevant context using hybrid search
+        4. Generate structured response with citations
+
+        Args:
+            query: User query text
+            intent_result: Pre-computed intent classification (optional)
+            conversation_history: Previous conversation turns for context
+            filter_doc_ids: Restrict retrieval to specific documents
+
+        Returns:
+            LLMResponseResult with complete response data
+
+        Raises:
+            LLMResponseError: If response generation fails
+        """
+        # Step 1: Get intent classification
+        if intent_result is None:
+            intent_result = await intent_classifier.classify(query)
+
+        intent = intent_result.intent
+        response_schema = INTENT_RESPONSE_SCHEMAS[intent]
+
+        # Step 2: Handle out_of_scope without retrieval
+        if intent == Intent.OUT_OF_SCOPE:
+            return await self._generate_out_of_scope_response(
+                query, intent_result, conversation_history
+            )
+
+        # Step 3: Get retrieval context for KB-dependent intents
+        sources: List[Source] = []
+        retrieval_queries: List[str] = [query]
+
+        if requires_kb_retrieval(intent):
+            sources, retrieval_queries = await self._retrieve_context(
+                query, filter_doc_ids
+            )
+
+            # Check if we have sufficient context
+            if not self._has_sufficient_context(sources):
+                return await self._generate_clarification_response(
+                    query, intent_result, sources, conversation_history
+                )
+
+        # Step 4: Build prompt and generate response
+        context_text = self._format_context(sources)
+        conversation_context = self._format_conversation_history(conversation_history)
+        prompt_template = get_prompt_for_intent(intent)
+
+        # Build the user prompt with all context
+        user_prompt = prompt_template.format(
+            citation_instructions=CITATION_INSTRUCTIONS,
+            context=context_text,
+            conversation_context=conversation_context,
+            query=query,
+            current_date=datetime.now().strftime("%Y-%m-%d"),
+        )
+
+        # Generate response
+        if conversation_history:
+            messages = self._build_messages_with_history(
+                conversation_history, user_prompt
+            )
+            response = await self.generator.generate_with_history(
+                system_prompt=SYSTEM_PROMPT,
+                messages=messages,
+                response_schema=response_schema,
+            )
+        else:
+            response = await self.generator.generate(
+                system_prompt=SYSTEM_PROMPT,
+                user_prompt=user_prompt,
+                response_schema=response_schema,
+            )
+
+        return LLMResponseResult(
+            query=query,
+            intent=intent,
+            intent_confidence=intent_result.confidence,
+            response=response,
+            sources_used=sources,
+            retrieval_queries=retrieval_queries,
+            model_used=self.generator.model,
+        )
+
+    async def _retrieve_context(
+        self,
+        query: str,
+        filter_doc_ids: Optional[List[str]] = None,
+    ) -> tuple[List[Source], List[str]]:
+        """
+        Retrieve context using multi-query RAG-Fusion.
+
+        Args:
+            query: Original user query
+            filter_doc_ids: Optional document filter
+
+        Returns:
+            Tuple of (sources list, all query variants used)
+        """
+        # Generate query variants
+        multi_query_result = await query_transformer.generate_multi_query(query)
+        all_queries = multi_query_result.all_queries
+
+        # Retrieve for each query variant and deduplicate
+        all_results: Dict[str, RetrievalResult] = {}
+
+        for variant_query in all_queries:
+            try:
+                retrieval_response = await retriever.search(
+                    query=variant_query,
+                    filter_doc_ids=filter_doc_ids,
+                    top_k=self._settings.retrieval_top_k,
+                )
+
+                # Deduplicate by chunk_id, keeping highest score
+                for result in retrieval_response.results:
+                    if result.chunk_id not in all_results:
+                        all_results[result.chunk_id] = result
+                    elif result.rrf_score > all_results[result.chunk_id].rrf_score:
+                        all_results[result.chunk_id] = result
+
+            except Exception:
+                # Continue with other queries if one fails
+                continue
+
+        # Sort by score and take top N
+        sorted_results = sorted(
+            all_results.values(), key=lambda r: r.rrf_score, reverse=True
+        )[: self._settings.max_context_chunks]
+
+        # Convert to Source objects
+        sources = []
+        for i, r in enumerate(sorted_results):
+            sources.append(
+                Source(
+                    source_id=f"src_{i}",
+                    chunk_id=r.chunk_id,
+                    document_id=r.document_id,
+                    title=r.metadata.get("title"),
+                    text_excerpt=r.parent_text or r.text,  # Prefer parent context
+                    relevance_score=r.rrf_score,
+                    page_number=r.page_number,
+                    doc_type=r.metadata.get("doc_type"),
+                    last_updated=r.metadata.get("last_updated"),
+                )
+            )
+
+        return sources, all_queries
+
+    def _has_sufficient_context(self, sources: List[Source]) -> bool:
+        """
+        Check if retrieved sources provide sufficient context.
+
+        Args:
+            sources: Retrieved source objects
+
+        Returns:
+            True if context is sufficient, False otherwise
+        """
+        if not sources:
+            return False
+
+        # Check if any source meets the minimum relevance threshold
+        threshold = self._settings.min_relevance_threshold
+        return any(s.relevance_score >= threshold for s in sources)
+
+    def _format_context(self, sources: List[Source]) -> str:
+        """
+        Format sources into context text for the prompt.
+
+        Args:
+            sources: List of Source objects
+
+        Returns:
+            Formatted context string
+        """
+        if not sources:
+            return "No relevant context found in the knowledge base."
+
+        context_parts = []
+        for source in sources:
+            header = f"[{source.source_id}]"
+            if source.title:
+                header += f" {source.title}"
+            if source.page_number:
+                header += f" (page {source.page_number})"
+            header += f" - relevance: {source.relevance_score:.2f}"
+
+            context_parts.append(f"{header}\n{source.text_excerpt}")
+
+        return "\n\n---\n\n".join(context_parts)
+
+    def _format_conversation_history(
+        self,
+        history: Optional[List[ConversationTurn]],
+    ) -> str:
+        """
+        Format conversation history for the prompt.
+
+        Args:
+            history: List of conversation turns
+
+        Returns:
+            Formatted conversation context string
+        """
+        if not history:
+            return ""
+
+        parts = ["## Conversation History"]
+        for turn in history:
+            role = "User" if turn.role == "user" else "Assistant"
+            parts.append(f"**{role}**: {turn.content}")
+
+        return "\n".join(parts)
+
+    def _build_messages_with_history(
+        self,
+        history: List[ConversationTurn],
+        current_prompt: str,
+    ) -> List[dict]:
+        """
+        Build message list including conversation history.
+
+        Args:
+            history: Previous conversation turns
+            current_prompt: Current user prompt with context
+
+        Returns:
+            List of message dicts for the API
+        """
+        messages = []
+
+        # Add history
+        for turn in history:
+            messages.append({"role": turn.role, "content": turn.content})
+
+        # Add current query with full context
+        messages.append({"role": "user", "content": current_prompt})
+
+        return messages
+
+    async def _generate_out_of_scope_response(
+        self,
+        query: str,
+        intent_result: IntentResult,
+        conversation_history: Optional[List[ConversationTurn]] = None,
+    ) -> LLMResponseResult:
+        """Generate response for out-of-scope queries without retrieval."""
+        prompt_template = get_prompt_for_intent(Intent.OUT_OF_SCOPE)
+        conversation_context = self._format_conversation_history(conversation_history)
+
+        user_prompt = prompt_template.format(
+            query=query,
+            conversation_context=conversation_context,
+        )
+
+        response = await self.generator.generate(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            response_schema=OutOfScopeResponse,
+        )
+
+        return LLMResponseResult(
+            query=query,
+            intent=Intent.OUT_OF_SCOPE,
+            intent_confidence=intent_result.confidence,
+            response=response,
+            sources_used=[],
+            retrieval_queries=[],
+            model_used=self.generator.model,
+        )
+
+    async def _generate_clarification_response(
+        self,
+        query: str,
+        intent_result: IntentResult,
+        sources: List[Source],
+        conversation_history: Optional[List[ConversationTurn]] = None,
+    ) -> LLMResponseResult:
+        """Generate clarification request when context is insufficient."""
+        conversation_context = self._format_conversation_history(conversation_history)
+        context_text = self._format_context(sources) if sources else "No relevant context found."
+
+        user_prompt = CLARIFICATION_PROMPT.format(
+            context=context_text,
+            query=query,
+            conversation_context=conversation_context,
+        )
+
+        response = await self.generator.generate(
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=user_prompt,
+            response_schema=ClarificationResponse,
+        )
+
+        return LLMResponseResult(
+            query=query,
+            intent=intent_result.intent,
+            intent_confidence=intent_result.confidence,
+            response=response,
+            sources_used=sources,
+            retrieval_queries=[query],
+            model_used=self.generator.model,
+        )
+
+
+# Singleton instance for easy imports
+llm_response_service = LLMResponseService()

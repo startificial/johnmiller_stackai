@@ -36,6 +36,20 @@ from backend.app.services.intent_classifier import (
     IntentConfigError,
     IntentParseError,
 )
+from backend.app.services.llm_response import (
+    LLMResponseService,
+    llm_response_service,
+    LLMResponseResult,
+    MistralResponseGenerator,
+    ConversationTurn,
+    Source,
+    Citation,
+    ConfidenceLevel,
+    LLMResponseError,
+    LLMResponseConfigError,
+    LLMResponseGenerationError,
+    LLMResponseParseError,
+)
 
 __all__ = [
     # Search indexer
@@ -70,4 +84,17 @@ __all__ = [
     "IntentClassificationError",
     "IntentConfigError",
     "IntentParseError",
+    # LLM response service
+    "LLMResponseService",
+    "llm_response_service",
+    "LLMResponseResult",
+    "MistralResponseGenerator",
+    "ConversationTurn",
+    "Source",
+    "Citation",
+    "ConfidenceLevel",
+    "LLMResponseError",
+    "LLMResponseConfigError",
+    "LLMResponseGenerationError",
+    "LLMResponseParseError",
 ]
