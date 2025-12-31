@@ -51,7 +51,7 @@ This project provides an end-to-end RAG pipeline for building knowledge base cha
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/startificial/johnmiller_stackai
 cd johnmiller_stackai
 
 # Install dependencies with uv
