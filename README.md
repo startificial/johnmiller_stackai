@@ -79,6 +79,7 @@ POSTGRES_DB=rag_db
 ### Database Setup
 
 ```bash
+# Pre-Reqs: Ensure PostgreSQL is installed and available on the current path. Ensure the pgvector extension is installed. 
 # Ensure PostgreSQL is running with pgvector extension
 # Create the database and user
 createdb rag_db
