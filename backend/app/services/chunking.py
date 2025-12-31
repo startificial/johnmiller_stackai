@@ -42,7 +42,7 @@ class Chunk:
 
     @property
     def is_parent(self) -> bool:
-        """Check if this chunk has children."""
+        """Check if this chunk has child nodes."""
         return len(self.child_ids) > 0
 
     @property
@@ -271,7 +271,7 @@ class StructuralChunker:
         Split text into chunks respecting structural boundaries.
 
         Attempts to split on paragraph boundaries first, then sentences,
-        then falls back to character-based splitting.
+        then falls back to character-based splitting if there are no apparent boundaries (i.e. no double newlines or periods).
         """
         if len(text) <= chunk_size:
             return [text]
@@ -385,7 +385,7 @@ class ChunkingService:
     """
     High-level chunking service that handles document chunking and database persistence.
 
-    Wraps the StructuralChunker and adds async database operations.
+    Wraps the StructuralChunker and adds support for async database operations.
     """
 
     def __init__(self, chunker: Optional[StructuralChunker] = None):

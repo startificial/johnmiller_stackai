@@ -14,7 +14,7 @@ def render_response(content: str, intent: Optional[str] = None):
 
     Args:
         content: Response content (may be JSON string)
-        intent: Intent classification from API (fallback)
+        intent: Intent classification from API
     """
     # Try to parse JSON content
     data = _parse_content(content)
@@ -81,7 +81,7 @@ def render_generic_response(data: dict[str, Any]):
             st.markdown(f"- {point}")
         return
 
-    # Fallback: show nicely formatted JSON
+    # Show nicely formatted JSON
     st.json(data)
 
 

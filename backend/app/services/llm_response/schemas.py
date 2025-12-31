@@ -56,7 +56,7 @@ class Citation(BaseModel):
 
 
 class BaseResponse(BaseModel):
-    """Base response model with common citation infrastructure."""
+    """Base response model."""
 
     query_understood: str = Field(..., description="Paraphrase of user's query")
     confidence: ConfidenceLevel = Field(

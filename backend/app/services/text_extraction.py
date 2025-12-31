@@ -1,7 +1,7 @@
 """
 Text Extraction Service
 
-Handles extraction of text content from various document formats.
+Handles extraction of text content from PDFs.
 Currently supports PDF files using PyMuPDF (fitz).
 
 Text Extraction Considerations:

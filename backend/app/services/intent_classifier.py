@@ -1,8 +1,8 @@
 """
 Intent Classification Service
 
-Classifies user queries into intent categories using Mistral AI's fastest
-model (ministral-3b-latest) for low-latency inference.
+Classifies queries into intent categories using Mistral AI's lower latency
+model (ministral-3b-latest). 
 
 Intent Categories:
 - lookup: Finding a specific document, page, or resource they know exists

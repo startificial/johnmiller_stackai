@@ -157,9 +157,9 @@ class Tokenizer:
 
 class BM25Index:
     """
-    BM25 search index with PostgreSQL persistence.
+    BM25 search index.
 
-    Implements the BM25 ranking algorithm:
+    Implements a BM25 ranking algorithm:
     BM25(D, Q) = Sum over qi in Q of:
         IDF(qi) * (f(qi,D) * (k1 + 1)) / (f(qi,D) + k1 * (1 - b + b * |D|/avgdl))
 
@@ -182,9 +182,9 @@ class BM25Index:
         Initialize BM25 index.
 
         Args:
-            k1: Term frequency saturation (default from settings)
-            b: Document length normalization (default from settings)
-            tokenizer: Custom tokenizer (default uses settings)
+            k1: Term frequency saturation (default derived from settings)
+            b: Document length normalization (default derived fromfrom settings)
+            tokenizer: Custom tokenizer (default derived fromsettings)
         """
         search_settings = settings.search
 

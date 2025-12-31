@@ -9,8 +9,8 @@ Search Flow:
 1. Semantic search: Embed query, find nearest vectors in pgvector (leaf chunks)
 2. Keyword search: BM25 ranking from search_indexer
 3. Merge results using Reciprocal Rank Fusion (RRF)
-4. Fetch parent chunks for context expansion
-5. Return top-k results
+4. Fetch parent chunks for more complete context 
+5. Returns top-k results
 """
 
 import asyncio
@@ -217,7 +217,7 @@ class HybridRetriever:
         # Take top_k results
         fused_results = fused_results[:top_k]
 
-        # Expand with parent context if requested
+        # Option to include parent context
         if expand_context and fused_results:
             fused_results = await self._expand_parent_context(fused_results)
 
@@ -246,7 +246,7 @@ class HybridRetriever:
             List of scored chunks from semantic search
         """
         try:
-            # Use the embedding service's similarity search
+            # Use embedding service's similarity search
             results = await self._embedding_service.similarity_search(
                 query=query,
                 top_k=top_k,
@@ -340,7 +340,7 @@ class HybridRetriever:
 
         RRF formula: score(d) = Σ (weight / (k + rank(d)))
 
-        Scores are normalized to 0-1 range by dividing by the theoretical
+        Scores are normalized to 0-1 range by dividing by the potential
         maximum (when a document is ranked #1 in both search methods).
 
         Args:
