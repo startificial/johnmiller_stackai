@@ -84,6 +84,10 @@ POSTGRES_DB=rag_db
 # Create the database and user
 createdb rag_db
 psql -d rag_db -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+
+# Initialize database tables
+cd backend
+python -c "import asyncio; from app.db.base import init_db; asyncio.run(init_db())"
 ```
 
 ### Running the Application
