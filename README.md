@@ -86,8 +86,7 @@ createdb rag_db
 psql -d rag_db -c 'CREATE EXTENSION IF NOT EXISTS vector;'
 
 # Initialize database tables
-cd backend
-python -c "import asyncio; from app.db.base import init_db; asyncio.run(init_db())"
+uv run python -c "import asyncio; from app.db.base import init_db; asyncio.run(init_db())"
 ```
 
 ### Running the Application
@@ -95,10 +94,10 @@ python -c "import asyncio; from app.db.base import init_db; asyncio.run(init_db(
 ```bash
 # Start the FastAPI backend
 cd backend
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# In a separate terminal, start the Streamlit frontend
-streamlit run frontend/app.py
+# In a separate terminal, start the Streamlit frontend (from project root)
+uv run streamlit run frontend/app.py --server.headless true
 ```
 
 Access the application:
